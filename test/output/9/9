@@ -1,0 +1,26 @@
+MkPlayerAction (PlayerAction {position = UTG, action = Fold, isHero = Villain})
+MkPlayerAction (PlayerAction {position = UTG1, action = Fold, isHero = Villain})
+MkPlayerAction (PlayerAction {position = UTG2, action = Fold, isHero = Hero})
+MkPlayerAction (PlayerAction {position = BU, action = Fold, isHero = Villain})
+MkPlayerAction (PlayerAction {position = SB, action = Call 0.03, isHero = Villain})
+MkPlayerAction (PlayerAction {position = BB, action = Check, isHero = Villain})
+MkDealerAction (FlopDeal (Card {rank = Eight, suit = Heart}) (Card {rank = Ace, suit = Diamond}) (Card {rank = Nine, suit = Club}))
+MkPlayerAction (PlayerAction {position = SB, action = Check, isHero = Villain})
+
+
+Stakes: 0.05
+Investments: [(BB, 0.00)]
+Street: FlopBoard (Card {rank = Eight, suit = Heart},Card {rank = Ace, suit = Diamond},Card {rank = Nine, suit = Club}) (PreFlopBoard InitialTable)
+Stacks:
+    (UTG,Jd7c 7.98)
+    (UTG1,Th2c 7.82)
+    (UTG2,9d6d 5.18)
+    (BU,Qh7d 7.99)
+    (SB,5s3s 2.91)
+    (BB,Ks4s 6.99)
+Queue: [BB,SB]
+ActiveBet: Nothing
+Potsize: 0.10
+Aggressor: Nothing
+
+(BB, [ACheck, ABet 0.05 6.99])

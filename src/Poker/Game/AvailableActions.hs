@@ -1,4 +1,5 @@
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Poker.Game.AvailableActions where
 --     notEnoughChipsErr = Left $ InvalidMove name NotEnoughChipsForAction
 --     activePlayersCount = length $ getActivePlayers _players
@@ -93,6 +94,7 @@ import qualified Data.List.NonEmpty            as NonEmpty
 import           Data.Maybe                     ( fromJust
                                                 , fromMaybe
                                                 )
+import           Data.Text                      ( Text )
 import           Poker.Base
 import           Poker.Game.Bovada
 -- -- | The first player to post their blinds in the predeal stage can do it from any
@@ -101,17 +103,33 @@ import           Poker.Game.Bovada
 -- -- when (< 2 players state set to sat in)
 import           Poker.Game.Types
 import           Poker.History.Types
-import           Poker.Types.BigBlind           ( smallestAmountBigBlind )
+import           Poker.Types.BigBlind           ( SmallAmount
+                                                , smallestAmountBigBlind
+                                                )
+import           Prettyprinter
 
 data Ranged a = Exactly a | Between a a
 
 data AvailableAction b = ACall b | ARaiseBetween b b | ARaiseAllIn b | AAllIn b | AFold | ACheck | ABet b b
+  deriving (Show, Eq, Ord)
+
+instance Pretty b => Pretty (AvailableAction b) where
+  pretty (ACall b           ) = "ACall" <+> pretty b
+  pretty (ARaiseBetween b b') = "ARaiseBetween" <+> pretty b <+> pretty b'
+  pretty (ARaiseAllIn b     ) = "ARaiseAllIn" <+> pretty b
+  pretty (AAllIn      b     ) = "AAllIn" <+> pretty b
+  pretty AFold                = "AFold"
+  pretty ACheck               = "ACheck"
+  pretty (ABet b b')          = "ABet" <+> pretty b <+> pretty b'
 
 availableActions
-  :: GameState BigBlind -> Either () (Position, [AvailableAction BigBlind])
-availableActions st@GameState { _potSize, _street, _stateStakes, _gameID, _stateHandText, _aggressor, _lastStreetAggressor, _toActQueue, _pastActions, _futureActions, _posToPlayer, _streetInvestments, _activeBet }
+  :: (Num b, Ord b, SmallAmount b)
+  => GameState b
+  -> Either Text (Position, [AvailableAction b])
+availableActions st@GameState { _potSize, _street, _stateStakes, _aggressor, _toActQueue, _posToPlayer, _streetInvestments, _activeBet }
   | length _toActQueue < 2
-  = Left ()
+  = Left "No actors left"
+  | (activePlayer:_) <- _toActQueue, Just activePlayer == _aggressor = Right (activePlayer, [])
   | otherwise
   = let activePlayer = head _toActQueue
     in  case _street of
@@ -119,24 +137,25 @@ availableActions st@GameState { _potSize, _street, _stateStakes, _gameID, _state
           TurnBoard  ca bo -> getStreetAvailableActions activePlayer st
           FlopBoard  x0 bo -> getStreetAvailableActions activePlayer st
           PreFlopBoard bo  -> getStreetAvailableActions activePlayer st
-          InitialTable     -> Left ()
+          InitialTable     -> Left "InitialTable"
 
 getStreetAvailableActions
-  :: Position
-  -> GameState BigBlind
-  -> Either () (Position, [AvailableAction BigBlind])
+  :: (Num b, Ord b, SmallAmount b)
+  => Position
+  -> GameState b
+  -> Either Text (Position, [AvailableAction b])
 getStreetAvailableActions activePlayer st@GameState { _activeBet, _potSize, _stateStakes }
   = case _activeBet of
     Nothing ->
-      let activePlayerStack :: BigBlind =
+      let activePlayerStack =
             st ^. posToPlayer . at activePlayer . to fromJust . stack . unStack
-          betA = if activePlayerStack < getStake _stateStakes
+          betA = if activePlayerStack > getStake _stateStakes
             then ABet (getStake _stateStakes) activePlayerStack
             else AAllIn activePlayerStack
       in  Right (activePlayer, [ACheck, betA])
     Just activeBet@(ActionFaced _ amount raiseSize) ->
       let
-        activePlayerStack :: BigBlind =
+        activePlayerStack =
           st ^. posToPlayer . at activePlayer . to fromJust . stack . unStack
         streetInv = st ^. streetInvestments . at activePlayer . non 0
         foldA     = AFold
@@ -149,11 +168,12 @@ getStreetAvailableActions activePlayer st@GameState { _activeBet, _potSize, _sta
         Right (activePlayer, callA : foldA : raiseAs)
  where
   tryRaise
-    :: PotSize BigBlind
-    -> BigBlind
-    -> Stack BigBlind
-    -> ActionFaced BigBlind
-    -> Maybe [AvailableAction BigBlind]
+    :: (Num b, Ord b, SmallAmount b)
+    => PotSize b
+    -> b
+    -> Stack b
+    -> ActionFaced b
+    -> Maybe [AvailableAction b]
   tryRaise (PotSize potSize) streetInv (Stack plStack) (ActionFaced _ amountFaced raiseSize)
     = let totalAvail = streetInv + plStack
           minRaise   = amountFaced + raiseSize
@@ -161,15 +181,7 @@ getStreetAvailableActions activePlayer st@GameState { _activeBet, _potSize, _sta
             then if totalAvail > amountFaced
               then Just [ARaiseAllIn plStack]
               else Nothing
-            else
-              let maxRaise = potSize + amountFaced
-              in  if totalAvail > maxRaise
-                    then Just [ARaiseBetween minRaise maxRaise]
-                    else Just
-                      [ ARaiseBetween minRaise
-                                      (plStack - smallestAmountBigBlind)
-                      , ARaiseAllIn plStack
-                      ]
+            else Just [ARaiseBetween minRaise plStack]
 
 
 -- checkPlayerSatAtTable :: Game -> PlayerName -> Either GameErr ()
@@ -188,7 +200,7 @@ getStreetAvailableActions activePlayer st@GameState { _activeBet, _potSize, _sta
 -- makeBet :: PlayerName -> Int -> Game -> Either GameErr ()
 -- makeBet name amount game@Game {..}
 --   | amount < _bigBlind =
---     Left $ InvalidMove name BetLessThanBigBlind
+--     Left $ InvalidMove name BetLessThanb
 --   | amount > chipCount =
 --     Left $ InvalidMove name NotEnoughChipsForAction
 --   | _street == Showdown || _street == PreDeal =

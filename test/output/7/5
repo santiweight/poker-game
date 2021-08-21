@@ -1,0 +1,22 @@
+MkPlayerAction (PlayerAction {position = UTG, action = Fold, isHero = Villain})
+MkPlayerAction (PlayerAction {position = UTG1, action = Fold, isHero = Villain})
+MkPlayerAction (PlayerAction {position = UTG2, action = Fold, isHero = Villain})
+MkPlayerAction (PlayerAction {position = BU, action = Fold, isHero = Villain})
+
+
+Stakes: 0.05
+Investments: [(SB, 0.02), (BB, 0.05)]
+Street: PreFlopBoard InitialTable
+Stacks:
+    (UTG,Ts6s 3.86)
+    (UTG1,7h4h 4.81)
+    (UTG2,Kd6c 9.64)
+    (BU,Ks9h 4.76)
+    (SB,Td3d 4.51)
+    (BB,5h2d 4.90)
+Queue: [SB,BB]
+ActiveBet: Just ActionFaced:  betType: PostB amountFaced: 0.05 raiseSize: 0.05
+Potsize: 0.07
+Aggressor: Nothing
+
+(SB, [ACall 0.03, AFold, ARaiseBetween 0.10 4.51])

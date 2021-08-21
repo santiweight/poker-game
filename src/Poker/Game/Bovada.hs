@@ -31,7 +31,7 @@ import Control.Lens
 import           Control.Monad.Except           ( ExceptT
                                                 , MonadError
                                                 , runExceptT
-                                                , throwError
+                                                , throwError, Except, runExcept
                                                 )
 import           Control.Monad.Reader
 import           Control.Monad.State.Lazy
@@ -41,85 +41,86 @@ import           Data.Maybe                     ( fromJust
                                                 )
 import           Poker.Base
 import           Poker.Game.Types
+import Debug.Trace
 
-type IsGame m
-  = (MonadState (GameState BigBlind) m, MonadError (GameErrorBundle BigBlind) m)
+type IsGame m b
+  = (Num b, Ord b, MonadState (GameState b) m, MonadError (GameErrorBundle b) m)
 
 
-incPot :: (MonadState (GameState BigBlind) m) => BigBlind -> m ()
+incPot :: (Num b, MonadState (GameState b) m) => b -> m ()
 incPot bet = potSize . mapped += bet
 
 getPlayer
-  :: MonadReader (GameState BigBlind) m
+  :: MonadReader (GameState b) m
   => Position
-  -> m (Maybe (Player BigBlind))
+  -> m (Maybe (Player b))
 getPlayer pos_ = ask <&> view (posToPlayer . at pos_)
 
 -- Reduce state pot size
-decPot :: (IsGame m) => BigBlind -> m (PotSize BigBlind)
-decPot amount = do
+decPot :: (IsGame m b) => Action b -> b -> m (PotSize b)
+decPot a amount = do
   checkPotSize <- potSize <%= dec amount
-  mErrorAssert (checkPotSize >= PotSize 0) NegativePotSize
+  mErrorAssert a (checkPotSize >= PotSize 0) NegativePotSize
   return checkPotSize
  where
-  dec :: BigBlind -> PotSize BigBlind -> PotSize BigBlind
+  dec :: Num b => b -> PotSize b -> PotSize b
   dec betSize (PotSize potSize_) = PotSize $ potSize_ - betSize
 
 -- Increase stack size at a seat position
-incStack :: (IsGame m) => Position -> BigBlind -> Action BigBlind -> m ()
-incStack pos amount _ = do
-  _ <- getStack pos
+incStack :: (IsGame m b) => Position -> b -> Action b -> m ()
+incStack pos amount a = do
+  _ <- getStack a pos
   -- mErrorAssert (playerStack - amount > 0) (NegativePlayerStack badAct)
   atPlayerStack pos -= amount
 
 -- Decrease stack size at a seat position
 decStack
-  :: (IsGame m, MonadState (GameState t) m)
+  :: (IsGame m b, MonadState (GameState t) m)
   => Position
-  -> BigBlind
-  -> Action BigBlind
+  -> b
+  -> Action b
   -> m ()
 decStack pos amount badAct = do
-  playerStack <- getStack pos
-  mErrorAssert (playerStack - amount >= 0) (NegativePlayerStack badAct)
+  playerStack <- getStack badAct pos
+  mErrorAssert badAct (playerStack - amount >= 0) (NegativePlayerStack badAct)
   atPlayerStack pos -= amount
 
 atPlayerStack :: Position -> Traversal' (GameState t) t
 atPlayerStack pos = posToPlayer . ix pos . stack . unStack
 
-getStack :: IsGame m => Position -> m BigBlind
-getStack pos = maybeToErrorBundle PlayerNotFound =<< preuse (atPlayerStack pos)
+getStack :: IsGame m b => Action b -> Position -> m b
+getStack a pos = maybeToErrorBundle a PlayerNotFound =<< preuse (atPlayerStack pos)
 
 -- Not a big deal but this implementation of the player queue
 -- means that every rotation takes 6 steps since snoc is O(n)
 -- Ensures that the position removed from queue is the one in the queue currently
-rotateNextActor :: IsGame m => Position -> m ()
-rotateNextActor pos = do
+rotateNextActor :: IsGame m b => Action b -> Position -> m ()
+rotateNextActor a pos = do
   (toAct, rest) <-
-    maybeToErrorBundle NoPlayersInQueue . uncons =<< use toActQueue
-  mErrorAssert (pos == toAct) $ WrongPlayerActed toAct pos
+    maybeToErrorBundle a NoPlayersInQueue . uncons =<< use toActQueue
+  mErrorAssert a (pos == toAct) $ WrongPlayerActed toAct pos
   toActQueue .= rest ++ [toAct]
 
 -- Ensures that the next actor is the one acting
 -- Removes the next actor instead of put it at the back of the queue
-removeNextActor :: IsGame m => Position -> m ()
-removeNextActor pos = do
+removeNextActor :: IsGame m b => Action b -> Position -> m ()
+removeNextActor a pos = do
   (toAct, rest) <-
-    maybeToErrorBundle NoPlayersInQueue . uncons =<< use toActQueue
-  mErrorAssert (pos == toAct) $ WrongPlayerActed toAct pos
+    maybeToErrorBundle a NoPlayersInQueue . uncons =<< use toActQueue
+  mErrorAssert a (pos == toAct) $ WrongPlayerActed toAct pos
   toActQueue .= rest
 
-numActivePlayers :: IsGame m => m Int
+numActivePlayers :: IsGame m b => m Int
 numActivePlayers = length <$> use toActQueue
 
 {- IsGame Actions -}
 
 -- Monadic action to alter state board with a deal action
-addDealToState :: IsGame m => DealerAction -> m ()
-addDealToState deal = do
+addDealToState :: IsGame m b => Action b -> DealerAction -> m ()
+addDealToState a deal = do
   board <- use street
   case addDealToBoard deal board of
-    Nothing     -> throwBundleError $ IncorrectDeal deal board
+    Nothing     -> throwBundleError a $ IncorrectDeal deal board
     Just board' -> street .= board'
  where
     -- Take a deal data type and return a board
@@ -136,14 +137,14 @@ addDealToState deal = do
 
 -- Monadic action to execute an Action datatype on the given state
 emulateAction
-  :: forall m
-   . (IsGame m, MonadState (GameState BigBlind) m)
-  => Action BigBlind
+  :: forall m b
+   . (IsGame m b)
+  => Action b
   -> m ()
 emulateAction a = case a of
   MkPlayerAction (PlayerAction pos actVal _) -> do
     use street >>= \case
-      InitialTable -> throwBundleError (PlayerActedPreDeal a)
+      InitialTable -> throwBundleError a (PlayerActedPreDeal a)
       _            -> pure ()
     betSize <- flip (getBetSize pos) actVal
       =<< use (streetInvestments . at pos . non 0)
@@ -154,7 +155,7 @@ emulateAction a = case a of
     decStack pos betSize a
     doRotateNextActor pos actVal
   MkDealerAction deal -> do
-    addDealToState deal
+    addDealToState a deal
     saveAggressor
     case deal of
       PlayerDeal -> pure ()
@@ -167,8 +168,10 @@ emulateAction a = case a of
         toActQueue %= sortPostflop
   MkTableAction act -> handleTableAction act
  where
-  saveAggressor :: IsGame m => m ()
-  saveAggressor = (lastStreetAggressor .=) =<< aggressor <<.= Nothing
+  saveAggressor :: IsGame m b => m ()
+  saveAggressor = aggressor .= Nothing
+  -- saveAggressor :: IsGame m => m ()
+  -- saveAggressor = (lastStreetAggressor .=) =<< aggressor <<.= Nothing
   isAggressive :: BetAction t -> Bool
   isAggressive = \case
     Call _         -> False
@@ -179,31 +182,31 @@ emulateAction a = case a of
     Fold           -> False
     Check          -> False
     OtherAction    -> False
-  getBetSize :: Position -> BigBlind -> BetAction BigBlind -> m BigBlind
+  getBetSize :: Position -> b -> BetAction b -> m b
   getBetSize pos previousInvestment act = do
     activeBet <- fromMaybe 0 <$> preuse (activeBet . _Just . amountFaced)
     case act of
       Call amount -> do
-        mErrorAssert (amount == activeBet - previousInvestment)
+        mErrorAssert a (amount == activeBet - previousInvestment)
           $ CallWrongAmount activeBet a
         pure amount -- - previousInvestment
       Raise      _ amountTo -> pure $ amountTo - previousInvestment
       AllInRaise _ amountTo -> pure $ amountTo - previousInvestment
       Bet   amount          -> pure amount
       AllIn amount          -> do
-        playerStack <- getStack pos
-        mErrorAssert (amount == playerStack) (AllInNotFullStack playerStack a)
+        playerStack <- getStack a pos
+        mErrorAssert a (amount == playerStack) (AllInNotFullStack playerStack a)
         pure amount
       Fold        -> pure 0
       Check       -> pure 0
       OtherAction -> pure 0
-  processInvestment :: (IsGame m) => Position -> BigBlind -> m ()
+  processInvestment :: (IsGame m b) => Position -> b -> m ()
   processInvestment pos betSize =
     streetInvestments . at pos . non 0 %= (+ betSize)
-  doRotateNextActor :: IsGame m => Position -> BetAction t -> m ()
+  doRotateNextActor :: IsGame m b => Position -> BetAction t -> m ()
   doRotateNextActor pos =
-    let doRemove = removeNextActor pos
-        doRotate = rotateNextActor pos
+    let doRemove = removeNextActor a pos
+        doRotate = rotateNextActor a pos
     in  \case
           Call _         -> doRotate
           Raise      _ _ -> doRotate
@@ -213,7 +216,7 @@ emulateAction a = case a of
           Fold           -> doRemove
           Check          -> doRotate
           OtherAction    -> pure () -- TODO
-  processActiveBet :: (IsGame m) => BetAction BigBlind -> m ()
+  processActiveBet :: (IsGame m b) => BetAction b -> m ()
   processActiveBet = \case
     Call _                -> pure ()
     Raise      _ amountTo -> incActiveBet amountTo
@@ -225,12 +228,12 @@ emulateAction a = case a of
     Fold        -> pure ()
     Check       -> pure ()
     OtherAction -> pure ()
-  incActiveBet :: IsGame m => BigBlind -> m ()
+  incActiveBet :: IsGame m b => b -> m ()
   incActiveBet newFacedAmount = use activeBet >>= \case
-    Nothing -> activeBet ?= ActionFaced OneB newFacedAmount undefined
-    Just (ActionFaced bType _ _) ->
-      activeBet ?= ActionFaced (succ bType) newFacedAmount undefined
-  handleTableAction :: (IsGame m) => TableAction BigBlind -> m ()
+    Nothing -> activeBet ?= ActionFaced OneB newFacedAmount newFacedAmount
+    Just (ActionFaced bType amountFaced _) ->
+      activeBet ?= ActionFaced (succ bType) newFacedAmount (newFacedAmount - amountFaced)
+  handleTableAction :: (IsGame m b) => TableAction b -> m ()
   handleTableAction UnknownAction         = pure () -- FIXME
   handleTableAction (TableAction pos val) = case val of
     Deposit  _        -> return () -- TODO may need to inc stack size
@@ -250,36 +253,36 @@ emulateAction a = case a of
     Muck     _ _  -> return ()
     Rejoin        -> return ()
     Return amount -> do
-      _ <- decPot amount
+      _ <- decPot a amount
       incStack pos amount a
     Result _ -> return () -- TODO
    where
-    doPost :: (IsGame m) => BigBlind -> m ()
+    doPost :: (IsGame m b) => b -> m ()
     doPost postSize = do
       incPot postSize
       streetInvestments . at pos ?= postSize
       preuse (activeBet . _Just . amountFaced) >>= \case
         Just amountFaced' | postSize >= amountFaced' ->
-          activeBet ?= ActionFaced PostB postSize undefined
+          activeBet ?= ActionFaced PostB postSize postSize
         Just _  -> pure ()
-        Nothing -> activeBet ?= ActionFaced PostB postSize undefined
+        Nothing -> activeBet ?= ActionFaced PostB postSize postSize
       decStack pos postSize a
 
-mErrorAssert :: IsGame m => Bool -> GameError BigBlind -> m ()
-mErrorAssert b e = if b then return () else throwBundleError e
+mErrorAssert :: IsGame m b => Action b -> Bool -> GameError b -> m ()
+mErrorAssert a b e = if b then return () else throwBundleError a e
 
-throwBundleError :: IsGame m => GameError BigBlind -> m a
-throwBundleError e = throwError . GameErrorBundle e =<< get
+throwBundleError :: IsGame m b => Action b -> GameError b -> m a
+throwBundleError a e = throwError . (\st -> GameErrorBundle e st a) =<< get
 
-maybeToErrorBundle :: IsGame m => GameError BigBlind -> Maybe a -> m a
-maybeToErrorBundle e mb = case mb of
+maybeToErrorBundle :: IsGame m b => Action b -> GameError b -> Maybe a -> m a
+maybeToErrorBundle a e mb = case mb of
   Just a  -> return a
-  Nothing -> throwError . GameErrorBundle e =<< get
+  Nothing -> throwBundleError a e
 
 {- Testing and Printing methods -}
 
-execIsGame :: StateT s (ExceptT e Identity) a -> s -> Either e s
-execIsGame m = runIdentity . runExceptT . execStateT m
+execIsGame :: StateT s (Except e) a -> s -> Either e s
+execIsGame m = runExcept . execStateT m
 
 evalIsGame :: StateT s (ExceptT e Identity) a -> s -> Either e a
 evalIsGame m = runIdentity . runExceptT . evalStateT m
@@ -288,9 +291,9 @@ evalIsGame m = runIdentity . runExceptT . evalStateT m
 --   :: MonadIO m  =>
 --      StateT GameState (ExceptT e m) a -> GameState -> m (Either e String)
 testIsGame
-  :: Show BigBlind
-  => StateT (GameState BigBlind) (ExceptT (GameErrorBundle BigBlind) IO) a
-  -> GameState BigBlind
+  :: Show b
+  => StateT (GameState b) (ExceptT (GameErrorBundle b) IO) a
+  -> GameState b
   -> IO ()
 testIsGame actionM inputState = do
   res <- runExceptT (runStateT actionM inputState)
@@ -301,5 +304,5 @@ testIsGame actionM inputState = do
     Right (_, state') -> do
       putStrLn "*** Game completed without error ***"
       -- prettyPrint state'
-      putStr $ view stateHandText state'
+      -- putStr $ view stateHandText state'
 

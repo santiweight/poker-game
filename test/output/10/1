@@ -1,0 +1,18 @@
+
+
+Stakes: 0.05
+Investments: [(SB, 0.02), (BB, 0.05)]
+Street: PreFlopBoard InitialTable
+Stacks:
+    (UTG,7h3h 4.93)
+    (UTG1,8h5c 11.77)
+    (UTG2,6c2s 4.18)
+    (BU,Td3c 5.02)
+    (SB,7d3d 5.16)
+    (BB,Jc2h 2.01)
+Queue: [UTG,UTG1,UTG2,BU,SB,BB]
+ActiveBet: Just ActionFaced:  betType: PostB amountFaced: 0.05 raiseSize: 0.05
+Potsize: 0.07
+Aggressor: Nothing
+
+(UTG, [ACall 0.05, AFold, ARaiseBetween 0.10 4.93])
