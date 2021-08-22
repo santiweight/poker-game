@@ -69,7 +69,6 @@ deriving instance Show a => Show (GameState a)
 deriving instance Eq a => Eq (GameState a)
 deriving instance Functor GameState
 
-
 instance Pretty b => Pretty (GameState b) where
   pretty GameState { _potSize, _street, _stateStakes, _aggressor, _toActQueue, _posToPlayer, _streetInvestments, _activeBet }
     = concatWith (\a b -> a <> line <> b)

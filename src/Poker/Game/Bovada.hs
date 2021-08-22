@@ -3,35 +3,37 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Poker.Game.Bovada
-   where
+module Poker.Game.Bovada where
 
-import Control.Lens
-    ( (<&>),
-      uncons,
-      preuse,
-      use,
-      view,
-      non,
-      (<%=),
-      (<<.=),
-      _Just,
-      (%=),
-      (+=),
-      (-=),
-      (.=),
-      (?=),
-      mapped,
-      makeLenses,
-      Identity(runIdentity),
-      At(at),
-      Ixed(ix),
-      Each(each),
-      Traversal' )
-import           Control.Monad.Except           ( ExceptT
+import           Control.Arrow                  ( (>>>) )
+import           Control.Lens                   ( (%=)
+                                                , (+=)
+                                                , (-=)
+                                                , (.=)
+                                                , (<%=)
+                                                , (<&>)
+                                                , (<<.=)
+                                                , (?=)
+                                                , At(at)
+                                                , Each(each)
+                                                , Identity(runIdentity)
+                                                , Ixed(ix)
+                                                , Traversal'
+                                                , _Just
+                                                , makeLenses
+                                                , mapped
+                                                , non
+                                                , preuse
+                                                , uncons
+                                                , use
+                                                , view, (&)
+                                                )
+import           Control.Monad.Except           ( Except
+                                                , ExceptT
                                                 , MonadError
+                                                , runExcept
                                                 , runExceptT
-                                                , throwError, Except, runExcept
+                                                , throwError
                                                 )
 import           Control.Monad.Reader
 import           Control.Monad.State.Lazy
@@ -39,21 +41,31 @@ import qualified Data.Map                      as M
 import           Data.Maybe                     ( fromJust
                                                 , fromMaybe
                                                 )
+import qualified Data.Text                     as T
+import           Debug.Trace
 import           Poker.Base
+import           Poker.Game.AvailableActions    ( actionMatches
+                                                , availableActions
+                                                )
 import           Poker.Game.Types
-import Debug.Trace
+import           Prettyprinter                  ( Pretty (pretty), layoutPretty, defaultLayoutOptions )
+import Prettyprinter.Render.String
 
 type IsGame m b
-  = (Num b, Ord b, MonadState (GameState b) m, MonadError (GameErrorBundle b) m)
+  = ( SmallAmount b
+    , Pretty b
+    , Show b
+    , Num b
+    , Ord b
+    , MonadState (GameState b) m
+    , MonadError (GameErrorBundle b) m
+    )
 
 
 incPot :: (Num b, MonadState (GameState b) m) => b -> m ()
 incPot bet = potSize . mapped += bet
 
-getPlayer
-  :: MonadReader (GameState b) m
-  => Position
-  -> m (Maybe (Player b))
+getPlayer :: MonadReader (GameState b) m => Position -> m (Maybe (Player b))
 getPlayer pos_ = ask <&> view (posToPlayer . at pos_)
 
 -- Reduce state pot size
@@ -89,7 +101,8 @@ atPlayerStack :: Position -> Traversal' (GameState t) t
 atPlayerStack pos = posToPlayer . ix pos . stack . unStack
 
 getStack :: IsGame m b => Action b -> Position -> m b
-getStack a pos = maybeToErrorBundle a PlayerNotFound =<< preuse (atPlayerStack pos)
+getStack a pos =
+  maybeToErrorBundle a PlayerNotFound =<< preuse (atPlayerStack pos)
 
 -- Not a big deal but this implementation of the player queue
 -- means that every rotation takes 6 steps since snoc is O(n)
@@ -136,37 +149,51 @@ addDealToState a deal = do
   addDealToBoard _ _ = Nothing
 
 -- Monadic action to execute an Action datatype on the given state
-emulateAction
-  :: forall m b
-   . (IsGame m b)
-  => Action b
-  -> m ()
-emulateAction a = case a of
-  MkPlayerAction (PlayerAction pos actVal _) -> do
-    use street >>= \case
-      InitialTable -> throwBundleError a (PlayerActedPreDeal a)
-      _            -> pure ()
-    betSize <- flip (getBetSize pos) actVal
-      =<< use (streetInvestments . at pos . non 0)
-    incPot betSize
-    when (isAggressive actVal) $ aggressor ?= pos
-    processActiveBet actVal
-    processInvestment pos betSize
-    decStack pos betSize a
-    doRotateNextActor pos actVal
-  MkDealerAction deal -> do
-    addDealToState a deal
-    saveAggressor
-    case deal of
-      PlayerDeal -> pure ()
-      _          -> activeBet .= Nothing
-    use street >>= \case
-      InitialTable   -> toActQueue %= sortPreflop
-      PreFlopBoard _ -> toActQueue %= sortPreflop
-      _              -> do
-        streetInvestments . each .= 0
-        toActQueue %= sortPostflop
-  MkTableAction act -> handleTableAction act
+emulateAction :: forall m b . (IsGame m b) => Action b -> m ()
+emulateAction a = do
+  res <- case a of
+    MkPlayerAction pa@(PlayerAction pos actVal _) -> do
+      availActions <- get <&> availableActions
+
+      use street >>= \case
+        InitialTable -> throwBundleError a (PlayerActedPreDeal a)
+        _            -> pure ()
+      betSize <- flip (getBetSize pos) actVal
+        =<< use (streetInvestments . at pos . non 0)
+      incPot betSize
+      when (isAggressive actVal) $ aggressor ?= pos
+      processActiveBet actVal
+      processInvestment pos betSize
+      decStack pos betSize a
+      -- TODO all non-available actions should maybe have their own errors?
+      -- It would be good to silence error on each side (available/emulate)
+      -- and then ensure that the same errors are covered by each.
+      availActions & \case
+              Left txt -> throwBundleError a . CustomError . T.unpack $ txt
+              Right (pos, availableActions) ->
+                unless (any (actionMatches actVal) availableActions)
+                  $  throwBundleError a
+                  .  CustomError
+                  $  "Action "
+                  <> show (prettyString<$> a)
+                  <> "is not available"
+
+      doRotateNextActor pos actVal
+    MkDealerAction deal -> do
+      addDealToState a deal
+      saveAggressor
+      case deal of
+        PlayerDeal -> pure ()
+        _          -> activeBet .= Nothing
+      use street >>= \case
+        InitialTable   -> toActQueue %= sortPreflop
+        PreFlopBoard _ -> toActQueue %= sortPreflop
+        _              -> do
+          streetInvestments . each .= 0
+          toActQueue %= sortPostflop
+    MkTableAction act -> handleTableAction act
+  -- when (any actionMatches )
+  pure ()
  where
   saveAggressor :: IsGame m b => m ()
   saveAggressor = aggressor .= Nothing
@@ -231,15 +258,27 @@ emulateAction a = case a of
   incActiveBet :: IsGame m b => b -> m ()
   incActiveBet newFacedAmount = use activeBet >>= \case
     Nothing -> activeBet ?= ActionFaced OneB newFacedAmount newFacedAmount
-    Just (ActionFaced bType amountFaced _) ->
-      activeBet ?= ActionFaced (succ bType) newFacedAmount (newFacedAmount - amountFaced)
+    Just (ActionFaced bType amountFaced _) -> activeBet ?= ActionFaced
+      (succ bType)
+      newFacedAmount
+      (newFacedAmount - amountFaced)
   handleTableAction :: (IsGame m b) => TableAction b -> m ()
   handleTableAction UnknownAction         = pure () -- FIXME
   handleTableAction (TableAction pos val) = case val of
     Deposit  _        -> return () -- TODO may need to inc stack size
     Post     postSize -> doPost postSize
-    PostDead postSize -> doPost postSize
-    Enter             -> return () -- Not sure what this should be
+    PostDead postSize -> do
+      incPot postSize
+      decStack pos postSize a
+      Stake stakes <- use stateStakes
+      mErrorAssert a (postSize >= stakes)
+        .  CustomError
+        $  "expected postSize to be at least stakes value, "
+        <> show stakes
+        <> ", but found "
+        <> show postSize
+      streetInvestments . at pos ?= stakes
+    Enter -> return () -- Not sure what this should be
     Leave ->
       -- seat <- maybeToErrorBundle (SeatNotFound pos)
       --         =<< use (posToPlayer . at pos)
@@ -306,3 +345,6 @@ testIsGame actionM inputState = do
       -- prettyPrint state'
       -- putStr $ view stateHandText state'
 
+
+prettyString :: Pretty a => a -> String
+prettyString = renderString . layoutPretty defaultLayoutOptions . pretty

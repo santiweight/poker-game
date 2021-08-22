@@ -92,11 +92,10 @@ import           Control.Lens            hiding ( Fold )
 import           Data.List.NonEmpty             ( NonEmpty )
 import qualified Data.List.NonEmpty            as NonEmpty
 import           Data.Maybe                     ( fromJust
-                                                , fromMaybe
+                                                , fromMaybe, isNothing
                                                 )
 import           Data.Text                      ( Text )
 import           Poker.Base
-import           Poker.Game.Bovada
 -- -- | The first player to post their blinds in the predeal stage can do it from any
 -- -- position as long as there aren't enough players sat in to start a game
 -- -- Therefore the acting in turn rule wont apply for that first move
@@ -107,11 +106,26 @@ import           Poker.Types.BigBlind           ( SmallAmount
                                                 , smallestAmountBigBlind
                                                 )
 import           Prettyprinter
+import qualified Data.Text as T
+import Prettyprinter.Render.String (renderString)
 
 data Ranged a = Exactly a | Between a a
 
 data AvailableAction b = ACall b | ARaiseBetween b b | ARaiseAllIn b | AAllIn b | AFold | ACheck | ABet b b
   deriving (Show, Eq, Ord)
+
+actionMatches :: (Ord b, Eq b) => BetAction b -> AvailableAction b -> Bool
+actionMatches (Call b) (ACall b') = b == b'
+actionMatches (Raise _ b) (ARaiseBetween b' b'') = b >= b' && b <= b''
+actionMatches (AllInRaise _ b) (ARaiseAllIn b3) = b == b3
+actionMatches (AllInRaise _ b) (AAllIn b') = b == b'
+actionMatches (AllInRaise _ b) (ARaiseBetween b' b'') = b == b''
+actionMatches (Bet b) (ABet b' b3) = b >= b' && b <= b3
+actionMatches (AllIn b) (AAllIn b') = b == b'
+actionMatches (AllIn b) (ABet b' b'') = b == b''
+actionMatches Fold AFold = True
+actionMatches Check ACheck = True
+actionMatches _ _ = False
 
 instance Pretty b => Pretty (AvailableAction b) where
   pretty (ACall b           ) = "ACall" <+> pretty b
@@ -123,12 +137,14 @@ instance Pretty b => Pretty (AvailableAction b) where
   pretty (ABet b b')          = "ABet" <+> pretty b <+> pretty b'
 
 availableActions
-  :: (Num b, Ord b, SmallAmount b)
+  :: (Pretty b, Num b, Ord b, SmallAmount b)
   => GameState b
   -> Either Text (Position, [AvailableAction b])
 availableActions st@GameState { _potSize, _street, _stateStakes, _aggressor, _toActQueue, _posToPlayer, _streetInvestments, _activeBet }
-  | length _toActQueue < 2
-  = Left "No actors left"
+  -- TODO if a player is all in, then they are no longer in the act queue,
+  -- but the game is not over!
+  -- | length _toActQueue < 2
+  -- = Left "No actors left"
   | (activePlayer:_) <- _toActQueue, Just activePlayer == _aggressor = Right (activePlayer, [])
   | otherwise
   = let activePlayer = head _toActQueue
@@ -140,11 +156,11 @@ availableActions st@GameState { _potSize, _street, _stateStakes, _aggressor, _to
           InitialTable     -> Left "InitialTable"
 
 getStreetAvailableActions
-  :: (Num b, Ord b, SmallAmount b)
+  :: (Pretty b, Num b, Ord b, SmallAmount b)
   => Position
   -> GameState b
   -> Either Text (Position, [AvailableAction b])
-getStreetAvailableActions activePlayer st@GameState { _activeBet, _potSize, _stateStakes }
+getStreetAvailableActions activePlayer st@GameState { _activeBet, _potSize, _stateStakes,_aggressor }
   = case _activeBet of
     Nothing ->
       let activePlayerStack =
@@ -152,8 +168,19 @@ getStreetAvailableActions activePlayer st@GameState { _activeBet, _potSize, _sta
           betA = if activePlayerStack > getStake _stateStakes
             then ABet (getStake _stateStakes) activePlayerStack
             else AAllIn activePlayerStack
-      in  Right (activePlayer, [ACheck, betA])
-    Just activeBet@(ActionFaced _ amount raiseSize) ->
+      in  Right (activePlayer, [AFold, ACheck, betA])
+    Just activeBet@(ActionFaced betTy amount raiseSize) -> do
+      -- TODO handle BB can check preflop
+      -- TODO:
+      -- Bovada Hand #3761475002 TBL#18327252 HOLDEM No Limit - 2019-04-17 09:04:56
+      -- Seat 3: Dealer ($25.11 in chips)
+      -- Seat 5: Big Blind [ME] ($60.99 in chips)
+      -- Dealer : Set dealer [3]
+      -- Dealer : Small Blind $0.10
+      -- Big Blind  [ME] : Big blind $0.25
+      --     *** HOLE CARDS ***
+      let activePlayerStackMay = st ^? posToPlayer . at activePlayer . _Just . stack . unStack
+      activePlayerStack <- maybe (Left . T.pack $ "active player: "  <>show activePlayer <> ", posToPlayer" <> show (prettyString <$> st ^. posToPlayer )) pure activePlayerStackMay
       let
         activePlayerStack =
           st ^. posToPlayer . at activePlayer . to fromJust . stack . unStack
@@ -161,12 +188,14 @@ getStreetAvailableActions activePlayer st@GameState { _activeBet, _potSize, _sta
         foldA     = AFold
         raiseAs   = fromMaybe []
           $ tryRaise _potSize streetInv (Stack activePlayerStack) activeBet
-        callA = if activePlayerStack + streetInv < amount
-          then AAllIn activePlayerStack
-          else ACall (amount - streetInv)
-      in
-        Right (activePlayer, callA : foldA : raiseAs)
+        callA
+          | activePlayerStack + streetInv <= amount = AAllIn activePlayerStack
+          | streetInv == amount && isNothing _aggressor = ACheck
+          | otherwise = if amount - streetInv > 0 then ACall (amount - streetInv) else ACheck
+      pure (activePlayer, callA : foldA : raiseAs)
  where
+  prettyString :: Pretty a => a -> String
+  prettyString = renderString . layoutPretty defaultLayoutOptions . pretty
   tryRaise
     :: (Num b, Ord b, SmallAmount b)
     => PotSize b
@@ -179,9 +208,9 @@ getStreetAvailableActions activePlayer st@GameState { _activeBet, _potSize, _sta
           minRaise   = amountFaced + raiseSize
       in  if totalAvail < minRaise
             then if totalAvail > amountFaced
-              then Just [ARaiseAllIn plStack]
+              then Just [ARaiseAllIn (plStack + streetInv)]
               else Nothing
-            else Just [ARaiseBetween minRaise plStack]
+            else Just [ARaiseBetween minRaise (streetInv + plStack)]
 
 
 -- checkPlayerSatAtTable :: Game -> PlayerName -> Either GameErr ()
