@@ -241,7 +241,7 @@ unit_output = outputAvailableActions
 bovadaHistoryToGameState :: Num b => Bov.History Bov.Bovada b -> GameState b
 bovadaHistoryToGameState Bov.History { Bov._handStakes, Bov._handPlayerMap, Bov._handSeatMap, Bov._handActions, Bov._handText }
   = GameState
-    { _potSize           = PotSize 0
+    { _potSize           = Pot 0
     , _street            = InitialTable
     , _stateStakes       = _handStakes
     , _aggressor         = Nothing

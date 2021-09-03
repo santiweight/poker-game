@@ -2,6 +2,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE NamedFieldPuns #-}
 
@@ -22,20 +23,15 @@ import           Poker.Base                     ( Action
                                                 , DealerAction
                                                 , Hand
                                                 , Position
-                                                , PotSize
+                                                , Pot
                                                 , Seat
-                                                , Stake
+                                                , Stake, Stack (Stack)
                                                 )
-import           Prettyprinter                  ( Pretty )
 import           Prettyprinter
 
 newtype BigBlinds = BigBlinds Double deriving (Show, Eq, Ord)
 
 deriving instance Num BigBlinds
-
-newtype Stack b = Stack { _unStack :: b} deriving (Show, Eq, Ord, Generic, Functor, Pretty)
-
-makeLenses ''Stack
 
 data Player t = Player
   { _playerHolding :: !Hand
@@ -50,17 +46,11 @@ makeLenses ''Player
 
 
 data GameState g = GameState
-  { _potSize           :: PotSize g
+  { _potSize           :: Pot g
   , _street            :: Board
   , _stateStakes       :: Stake g
-  -- , _gameID              :: Int
-  -- , _stateHandText       :: String
   , _aggressor         :: Maybe Position
-  -- , _lastStreetAggressor :: Maybe Position
-                           -- The following data members should stay in GameState
   , _toActQueue        :: [Position]
-  -- , _pastActions         :: [Action g]
-  -- , _futureActions       :: [Action g]
   , _posToPlayer       :: Map Position (Player g)
   , _streetInvestments :: Map Position g
   , _activeBet         :: Maybe (ActionFaced g)

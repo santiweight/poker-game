@@ -143,8 +143,8 @@ availableActions
 availableActions st@GameState { _potSize, _street, _stateStakes, _aggressor, _toActQueue, _posToPlayer, _streetInvestments, _activeBet }
   -- TODO if a player is all in, then they are no longer in the act queue,
   -- but the game is not over!
-  -- | length _toActQueue < 2
-  -- = Left "No actors left"
+  --  | length _toActQueue < 2
+  --  = Left "No actors left"
   | (activePlayer:_) <- _toActQueue, Just activePlayer == _aggressor = Right (activePlayer, [])
   | otherwise
   = let activePlayer = head _toActQueue
@@ -164,7 +164,7 @@ getStreetAvailableActions activePlayer st@GameState { _activeBet, _potSize, _sta
   = case _activeBet of
     Nothing ->
       let activePlayerStack =
-            st ^. posToPlayer . at activePlayer . to fromJust . stack . unStack
+            st ^. posToPlayer . at activePlayer . to fromJust . stack . to _unStack
           betA = if activePlayerStack > getStake _stateStakes
             then ABet (getStake _stateStakes) activePlayerStack
             else AAllIn activePlayerStack
@@ -179,11 +179,11 @@ getStreetAvailableActions activePlayer st@GameState { _activeBet, _potSize, _sta
       -- Dealer : Small Blind $0.10
       -- Big Blind  [ME] : Big blind $0.25
       --     *** HOLE CARDS ***
-      let activePlayerStackMay = st ^? posToPlayer . at activePlayer . _Just . stack . unStack
+      let activePlayerStackMay = st ^? posToPlayer . at activePlayer . _Just . stack . to _unStack
       activePlayerStack <- maybe (Left . T.pack $ "active player: "  <>show activePlayer <> ", posToPlayer" <> show (prettyString <$> st ^. posToPlayer )) pure activePlayerStackMay
       let
         activePlayerStack =
-          st ^. posToPlayer . at activePlayer . to fromJust . stack . unStack
+          st ^. posToPlayer . at activePlayer . to fromJust . stack . to _unStack
         streetInv = st ^. streetInvestments . at activePlayer . non 0
         foldA     = AFold
         raiseAs   = fromMaybe []
@@ -198,12 +198,12 @@ getStreetAvailableActions activePlayer st@GameState { _activeBet, _potSize, _sta
   prettyString = renderString . layoutPretty defaultLayoutOptions . pretty
   tryRaise
     :: (Num b, Ord b, SmallAmount b)
-    => PotSize b
+    => Pot b
     -> b
     -> Stack b
     -> ActionFaced b
     -> Maybe [AvailableAction b]
-  tryRaise (PotSize potSize) streetInv (Stack plStack) (ActionFaced _ amountFaced raiseSize)
+  tryRaise (Pot potSize) streetInv (Stack plStack) (ActionFaced _ amountFaced raiseSize)
     = let totalAvail = streetInv + plStack
           minRaise   = amountFaced + raiseSize
       in  if totalAvail < minRaise

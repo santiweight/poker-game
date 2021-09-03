@@ -26,7 +26,7 @@ import           Control.Lens                   ( (%=)
                                                 , preuse
                                                 , uncons
                                                 , use
-                                                , view, (&)
+                                                , view, (&), to, lens
                                                 )
 import           Control.Monad.Except           ( Except
                                                 , ExceptT
@@ -69,14 +69,14 @@ getPlayer :: MonadReader (GameState b) m => Position -> m (Maybe (Player b))
 getPlayer pos_ = ask <&> view (posToPlayer . at pos_)
 
 -- Reduce state pot size
-decPot :: (IsGame m b) => Action b -> b -> m (PotSize b)
+decPot :: (IsGame m b) => Action b -> b -> m (Pot b)
 decPot a amount = do
-  checkPotSize <- potSize <%= dec amount
-  mErrorAssert a (checkPotSize >= PotSize 0) NegativePotSize
-  return checkPotSize
+  checkPot <- potSize <%= dec amount
+  mErrorAssert a (checkPot >= Pot 0) NegativePotSize
+  return checkPot
  where
-  dec :: Num b => b -> PotSize b -> PotSize b
-  dec betSize (PotSize potSize_) = PotSize $ potSize_ - betSize
+  dec :: Num b => b -> Pot b -> Pot b
+  dec betSize (Pot potSize_) = Pot $ potSize_ - betSize
 
 -- Increase stack size at a seat position
 incStack :: (IsGame m b) => Position -> b -> Action b -> m ()
@@ -98,7 +98,7 @@ decStack pos amount badAct = do
   atPlayerStack pos -= amount
 
 atPlayerStack :: Position -> Traversal' (GameState t) t
-atPlayerStack pos = posToPlayer . ix pos . stack . unStack
+atPlayerStack pos = posToPlayer . ix pos . stack . lens _unStack (\_ s -> Stack s)
 
 getStack :: IsGame m b => Action b -> Position -> m b
 getStack a pos =
