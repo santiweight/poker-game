@@ -179,7 +179,7 @@ outputHand hand originalFile handOutputDir handId cases = do
         let caseOutputFile      = handOutputDir </> show i
         let availableActionsRes = availableActions gs
         case (nextA ^? _MkPlayerAction, availableActionsRes) of
-          (Just (PlayerAction pos ba _), Right (pos', as)) -> do
+          (Just (PlayerAction pos ba), Right (pos', as)) -> do
             unless (pos == pos' && any (actionMatches ba) as) $ error
               (ppShow
                 ( handId
@@ -193,13 +193,13 @@ outputHand hand originalFile handOutputDir handId cases = do
               )
             let testActs = getTestActs =<< as
             forM_ testActs $ \testAct -> do
-              let res = runGame (emulateAction (MkPlayerAction (PlayerAction pos testAct Hero))) gs
+              let res = runGame (emulateAction (MkPlayerAction (PlayerAction pos testAct))) gs
               case res of
                 Left geb -> print "Available actions are wrong" >> (print $ pretty geb)
                 Right gs' -> pure ()
               pure ()
             let badTestActs = getBadTestActs =<< as
-            let foo =  badTestActs <&> \testAct -> let res = runGame (emulateAction (MkPlayerAction (PlayerAction pos testAct Hero))) gs
+            let foo =  badTestActs <&> \testAct -> let res = runGame (emulateAction (MkPlayerAction (PlayerAction pos testAct))) gs
                                                       in case res of
                                                         Left geb -> Nothing
                                                         Right gs' -> Just $ unlines [prettyString gs, show pos, show $ prettyString <$> testAct]

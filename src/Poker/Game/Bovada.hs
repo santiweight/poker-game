@@ -152,7 +152,7 @@ addDealToState a deal = do
 emulateAction :: forall m b . (IsGame m b) => Action b -> m ()
 emulateAction a = do
   res <- case a of
-    MkPlayerAction pa@(PlayerAction pos actVal _) -> do
+    MkPlayerAction pa@(PlayerAction pos actVal) -> do
       availActions <- get <&> availableActions
 
       use street >>= \case

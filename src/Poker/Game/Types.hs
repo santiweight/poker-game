@@ -44,7 +44,6 @@ instance Pretty t => Pretty (Player t) where
 
 makeLenses ''Player
 
-
 data GameState g = GameState
   { _potSize           :: Pot g
   , _street            :: Board
