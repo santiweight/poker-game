@@ -3,7 +3,7 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Poker.Game.Bovada where
+module Poker.Game.Emulate where
 
 import           Control.Arrow                  ( (>>>) )
 import           Control.Lens                   ( (%=)

@@ -90,7 +90,7 @@ test-suite all-tests
   type: exitcode-stdio-1.0
   main-is: Driver.hs
   other-modules:
-      Test.Poker.Game.Bovada
+      Test.Poker.Game.Emulate
       Test.Poker.Game.Maison
       Paths_poker_game
   hs-source-dirs:
