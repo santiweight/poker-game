@@ -16,18 +16,63 @@ import           Data.Map                       ( Map )
 import qualified Data.Map.Strict               as Map
 import           Data.Text.Prettyprint.Doc      ( Pretty(pretty) )
 import           GHC.Generics                   ( Generic )
-import           Poker.Base                     ( Action
-                                                , BetAction
-                                                , BigBlind
+import           Poker.Base                     ( BigBlind
                                                 , Board
-                                                , DealerAction
                                                 , Hand
                                                 , Position
                                                 , Pot
                                                 , Seat
-                                                , Stake, Stack (Stack)
+                                                , Stack(Stack)
+                                                , Stake, Card (Card)
                                                 )
 import           Prettyprinter
+
+data BetAction t
+  = Call !t
+  | Raise
+      { raiseBy :: !t, -- TODO remove?
+        raiseTo :: !t
+      }
+  -- TODO remove AllInRaise
+  | AllInRaise
+      { amountRaisedAI :: !t, -- TODO remove?
+        raisedAITo :: !t
+      }
+  | Bet !t
+  -- TODO remove AllIn
+  | AllIn !t
+  | Fold
+  | Check
+  deriving (Read, Show, Eq, Ord, Functor)
+
+data PlayerAction t = PlayerAction
+  { position :: !Position
+  , action   :: !(BetAction t)
+  }
+  deriving (Read, Show, Eq, Ord, Functor)
+
+data PostActionValue t
+  = Post !t
+  | PostDead !t
+  deriving (Read, Show, Ord, Eq, Functor)
+
+data PostAction t = PostAction !Position !(PostActionValue t)
+  deriving (Read, Show, Eq, Ord, Functor)
+
+-- TODO Fix the below to become the above
+data DealerAction
+  = PlayerDeal
+  | FlopDeal !Card !Card !Card
+  | TurnDeal !Card
+  | RiverDeal !Card
+  deriving (Read, Show, Eq, Ord)
+
+data Action t
+  = MkPlayerAction !(PlayerAction t)
+  | MkDealerAction !DealerAction
+  | MkPostAction !(PostAction t)
+  deriving (Read, Show, Eq, Ord, Functor)
+
 
 newtype BigBlinds = BigBlinds Double deriving (Show, Eq, Ord)
 
@@ -60,12 +105,17 @@ deriving instance Functor GameState
 
 instance Pretty b => Pretty (GameState b) where
   pretty GameState { _potSize, _street, _stateStakes, _aggressor, _toActQueue, _posToPlayer, _streetInvestments, _activeBet }
-    = concatWith (\a b -> a <> line <> b)
+    = concatWith
+      (\a b -> a <> line <> b)
       [ "Stakes:" <+> pretty _stateStakes
       , "Investments:" <+> pretty (Map.toList _streetInvestments)
       , "Street:" <+> pretty _street
-      , hang 4 $ "Stacks:" <> line <>
-        (vsep . fmap (asTuple . bimap pretty pretty) $ Map.toList _posToPlayer)
+      , hang 4
+      $  "Stacks:"
+      <> line
+      <> (vsep . fmap (asTuple . bimap pretty pretty) $ Map.toList
+           _posToPlayer
+         )
       , "Queue: " <> pretty (show _toActQueue)
       , "ActiveBet:" <+> (viaShow . fmap pretty) _activeBet
       , "Potsize: " <> pretty _potSize
@@ -114,13 +164,14 @@ instance Pretty g => Pretty (GameError g) where
   pretty = viaShow . fmap pretty
 
 data GameErrorBundle g = GameErrorBundle
-  { _bundleError :: GameError g
-  , _bundleState :: GameState g
+  { _bundleError         :: GameError g
+  , _bundleState         :: GameState g
   , _bundleCausingAction :: Action g
   }
 
 instance Pretty g => Pretty (GameErrorBundle g) where
-  pretty (GameErrorBundle ge gs ac) = hang 4 $ vsep ["GameErrorBundle:", pretty ge, pretty gs, viaShow . fmap pretty $ ac]
+  pretty (GameErrorBundle ge gs ac) = hang 4 $ vsep
+    ["GameErrorBundle:", pretty ge, pretty gs, viaShow . fmap pretty $ ac]
 
 deriving instance Show a => Show (GameErrorBundle a)
 deriving instance Eq a => Eq (GameErrorBundle a)

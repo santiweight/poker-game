@@ -191,7 +191,7 @@ emulateAction a = do
         _              -> do
           streetInvestments . each .= 0
           toActQueue %= sortPostflop
-    MkTableAction act -> handleTableAction act
+    MkPostAction act -> handlePostAction act
   -- when (any actionMatches )
   pure ()
  where
@@ -208,7 +208,6 @@ emulateAction a = do
     AllIn _        -> False
     Fold           -> False
     Check          -> False
-    OtherAction    -> False
   getBetSize :: Position -> b -> BetAction b -> m b
   getBetSize pos previousInvestment act = do
     activeBet <- fromMaybe 0 <$> preuse (activeBet . _Just . amountFaced)
@@ -226,7 +225,6 @@ emulateAction a = do
         pure amount
       Fold        -> pure 0
       Check       -> pure 0
-      OtherAction -> pure 0
   processInvestment :: (IsGame m b) => Position -> b -> m ()
   processInvestment pos betSize =
     streetInvestments . at pos . non 0 %= (+ betSize)
@@ -242,7 +240,6 @@ emulateAction a = do
           AllIn _        -> doRemove
           Fold           -> doRemove
           Check          -> doRotate
-          OtherAction    -> pure () -- TODO
   processActiveBet :: (IsGame m b) => BetAction b -> m ()
   processActiveBet = \case
     Call _                -> pure ()
@@ -254,7 +251,6 @@ emulateAction a = do
       if amount > faced then incActiveBet amount else pure ()
     Fold        -> pure ()
     Check       -> pure ()
-    OtherAction -> pure ()
   incActiveBet :: IsGame m b => b -> m ()
   incActiveBet newFacedAmount = use activeBet >>= \case
     Nothing -> activeBet ?= ActionFaced OneB newFacedAmount newFacedAmount
@@ -262,10 +258,9 @@ emulateAction a = do
       (succ bType)
       newFacedAmount
       (newFacedAmount - amountFaced)
-  handleTableAction :: (IsGame m b) => TableAction b -> m ()
-  handleTableAction UnknownAction         = pure () -- FIXME
-  handleTableAction (TableAction pos val) = case val of
-    Deposit  _        -> return () -- TODO may need to inc stack size
+  handlePostAction :: (IsGame m b) => PostAction b -> m ()
+  -- handlePostAction = _
+  handlePostAction (PostAction pos val) = case val of
     Post     postSize -> doPost postSize
     PostDead postSize -> do
       incPot postSize
@@ -278,23 +273,6 @@ emulateAction a = do
         <> ", but found "
         <> show postSize
       streetInvestments . at pos ?= stakes
-    Enter -> return () -- Not sure what this should be
-    Leave ->
-      -- seat <- maybeToErrorBundle (SeatNotFound pos)
-      --         =<< use (posToPlayer . at pos)
-      -- posToPlayer %= M.delete pos
-      -- playerMap %= M.delete seat
-      -- toActQueue %= List.delete pos
-      return ()
-    SitOut        -> return ()
-    SitDown       -> return ()
-    Showdown _ _  -> return ()
-    Muck     _ _  -> return ()
-    Rejoin        -> return ()
-    Return amount -> do
-      _ <- decPot a amount
-      incStack pos amount a
-    Result _ -> return () -- TODO
    where
     doPost :: (IsGame m b) => b -> m ()
     doPost postSize = do
