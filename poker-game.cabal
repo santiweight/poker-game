@@ -45,7 +45,7 @@ common common-extensions
 library
   import: common-extensions
   exposed-modules:
-    Poker.Game.Bovada
+    Poker.Game.Emulate
     Poker.Game.AvailableActions
     Poker.Game.Types
 
