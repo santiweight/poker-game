@@ -7,6 +7,7 @@ module Poker.Game.Bovada where
 
 import           Control.Arrow                  ( (>>>) )
 import           Control.Lens                   ( (%=)
+                                                , (&)
                                                 , (+=)
                                                 , (-=)
                                                 , (.=)
@@ -20,13 +21,15 @@ import           Control.Lens                   ( (%=)
                                                 , Ixed(ix)
                                                 , Traversal'
                                                 , _Just
+                                                , lens
                                                 , makeLenses
                                                 , mapped
                                                 , non
                                                 , preuse
+                                                , to
                                                 , uncons
                                                 , use
-                                                , view, (&), to, lens
+                                                , view
                                                 )
 import           Control.Monad.Except           ( Except
                                                 , ExceptT
@@ -43,13 +46,16 @@ import           Data.Maybe                     ( fromJust
                                                 )
 import qualified Data.Text                     as T
 import           Debug.Trace
-import           Poker.Base
+import           Poker
 import           Poker.Game.AvailableActions    ( actionMatches
                                                 , availableActions
                                                 )
 import           Poker.Game.Types
-import           Prettyprinter                  ( Pretty (pretty), layoutPretty, defaultLayoutOptions )
-import Prettyprinter.Render.String
+import           Prettyprinter                  ( Pretty(pretty)
+                                                , defaultLayoutOptions
+                                                , layoutPretty
+                                                )
+import           Prettyprinter.Render.String
 
 type IsGame m b
   = ( SmallAmount b
@@ -98,7 +104,8 @@ decStack pos amount badAct = do
   atPlayerStack pos -= amount
 
 atPlayerStack :: Position -> Traversal' (GameState t) t
-atPlayerStack pos = posToPlayer . ix pos . stack . lens _unStack (\_ s -> Stack s)
+atPlayerStack pos =
+  posToPlayer . ix pos . stack . lens _unStack (\_ s -> Stack s)
 
 getStack :: IsGame m b => Action b -> Position -> m b
 getStack a pos =
@@ -169,14 +176,14 @@ emulateAction a = do
       -- It would be good to silence error on each side (available/emulate)
       -- and then ensure that the same errors are covered by each.
       availActions & \case
-              Left txt -> throwBundleError a . CustomError . T.unpack $ txt
-              Right (pos, availableActions) ->
-                unless (any (actionMatches actVal) availableActions)
-                  $  throwBundleError a
-                  .  CustomError
-                  $  "Action "
-                  <> show (prettyString<$> a)
-                  <> "is not available"
+        Left txt -> throwBundleError a . CustomError . T.unpack $ txt
+        Right (pos, availableActions) ->
+          unless (any (actionMatches actVal) availableActions)
+            $  throwBundleError a
+            .  CustomError
+            $  "Action "
+            <> show (prettyString <$> a)
+            <> "is not available"
 
       doRotateNextActor pos actVal
     MkDealerAction deal -> do
@@ -223,8 +230,8 @@ emulateAction a = do
         playerStack <- getStack a pos
         mErrorAssert a (amount == playerStack) (AllInNotFullStack playerStack a)
         pure amount
-      Fold        -> pure 0
-      Check       -> pure 0
+      Fold  -> pure 0
+      Check -> pure 0
   processInvestment :: (IsGame m b) => Position -> b -> m ()
   processInvestment pos betSize =
     streetInvestments . at pos . non 0 %= (+ betSize)
@@ -249,8 +256,8 @@ emulateAction a = do
     AllIn amount          -> do
       faced <- fromMaybe 0 <$> preuse (activeBet . _Just . amountFaced)
       if amount > faced then incActiveBet amount else pure ()
-    Fold        -> pure ()
-    Check       -> pure ()
+    Fold  -> pure ()
+    Check -> pure ()
   incActiveBet :: IsGame m b => b -> m ()
   incActiveBet newFacedAmount = use activeBet >>= \case
     Nothing -> activeBet ?= ActionFaced OneB newFacedAmount newFacedAmount

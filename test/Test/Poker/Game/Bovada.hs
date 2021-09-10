@@ -2,8 +2,7 @@
 {-# LANGUAGE TupleSections #-}
 module Test.Poker.Game.Bovada where
 
-import           Control.Lens hiding (Fold)
-import           Control.Lens.Combinators hiding (Fold)
+import           Control.Lens            hiding ( Fold )
 import           Control.Lens.Extras            ( is )
 import           Control.Monad.Except           ( Except
                                                 , MonadError
@@ -12,18 +11,18 @@ import           Control.Monad.Except           ( Except
                                                 )
 import           Control.Monad.State.Strict
 import           Control.Monad.Writer
-import           Data.Bifunctor                 ( Bifunctor(second) )
-import           Data.Either                    ( fromRight )
 import           Data.Either.Extra              ( eitherToMaybe )
-import           Data.Functor
 import           Data.List.Extra                ( splitOn )
 import qualified Data.Map.Strict               as Map
 import           Data.Map.Strict                ( Map )
-import           Data.Maybe                     ( fromJust
-                                                , listToMaybe
-                                                , maybeToList, catMaybes, mapMaybe
+import           Data.Maybe                     ( catMaybes
+
+
+                                                , mapMaybe
+
                                                 )
 import           Data.Text                      ( Text )
+import qualified Data.Text                     as T
 import qualified Data.Text.IO                  as T
 import           Data.Text.Prettyprint.Doc.Render.String
 import           Data.Void                      ( Void )
@@ -33,11 +32,14 @@ import           Money                          ( Approximation(Floor)
                                                 , discreteFromDense
                                                 , discreteToDecimal
                                                 )
-import           Poker.Base
-import           Poker.Game.AvailableActions    ( actionMatches
-                                                , availableActions, AvailableAction(..)
+import           Poker
+import           Poker.Game.AvailableActions    ( AvailableAction(..)
+                                                , actionMatches
+                                                , availableActions
                                                 )
+import           Poker.Game.Bovada
 import           Poker.Game.Types
+import qualified Poker.History.Model           as Bov
 import qualified Poker.History.Parse.Bovada    as Bov
 import qualified Poker.History.Types           as Bov
 import           Prettyprinter                  ( Pretty(pretty)
@@ -53,10 +55,6 @@ import           System.Directory
 import           System.FilePath
 import           Text.Megaparsec
 import           Text.Show.Pretty               ( ppShow )
-import Poker.Base (SmallAmount)
-import qualified Data.Text as T
-import qualified Poker.History.Model as Bov
-import Poker.Game.Bovada
 
 testDir :: IO FilePath
 testDir = getCurrentDirectory <&> (</> "test")
@@ -100,7 +98,11 @@ outputAvailableActions = do
       let handOutputDir = fpOutputDir </> show i
       createDirectory handOutputDir
       let hand' = fmap toUsdHand hand
-      outputHand hand' fp handOutputDir (Bov.gameId . Bov.header $ hand') (getCases hand')
+      outputHand hand'
+                 fp
+                 handOutputDir
+                 (Bov.gameId . Bov.header $ hand')
+                 (getCases hand')
  where
   toUsdHand :: Bov.SomeBetSize -> Amount "USD"
   toUsdHand (Bov.SomeBetSize Bov.USD ra) =
@@ -118,7 +120,9 @@ getCases
   -> Either (GameErrorBundle (Amount "USD")) [Case (Amount "USD")]
 getCases hand' =
   let (preflop, postflop) =
-        break (is (_MkDealerAction . only PlayerDeal)) . mapMaybe normaliseBovadaAction $ Bov._handActions hand'
+        break (is (_MkDealerAction . only PlayerDeal))
+          . mapMaybe normaliseBovadaAction
+          $ Bov._handActions hand'
       (preflop', postflop') =
         ( preflop `snoc` head postflop
         , filter (isn't _MkPostAction) $ tail postflop
@@ -137,7 +141,14 @@ getCases hand' =
         $ concatM (go <$> tail postflop')
  where
   go
-    :: (SmallAmount b, Pretty b, Show b, Num b, Ord b, MonadWriter [Case b] m, MonadError (GameErrorBundle b) m)
+    :: ( SmallAmount b
+       , Pretty b
+       , Show b
+       , Num b
+       , Ord b
+       , MonadWriter [Case b] m
+       , MonadError (GameErrorBundle b) m
+       )
     => Action b
     -> Case b
     -> m (Case b)
@@ -147,61 +158,80 @@ getCases hand' =
     tell [Case (as `snoc` nextA) ac gs']
     pure $ Case (as `snoc` nextA) ac gs'
 
-normaliseBovadaAction :: Bov.Action (Amount "USD") -> Maybe (Action (Amount "USD"))
-normaliseBovadaAction (Bov.MkBetAction po ba) = Just $ MkPlayerAction $ PlayerAction po (normaliseBetAction ba)
-normaliseBovadaAction (Bov.MkDealerAction da) = Just (MkDealerAction $ normaliseDealerAction da)
-normaliseBovadaAction (Bov.MkTableAction ta) = MkPostAction <$> normaliseTableAction ta
+normaliseBovadaAction
+  :: Bov.Action (Amount "USD") -> Maybe (Action (Amount "USD"))
+normaliseBovadaAction (Bov.MkBetAction po ba) =
+  Just $ MkPlayerAction $ PlayerAction po (normaliseBetAction ba)
+normaliseBovadaAction (Bov.MkDealerAction da) =
+  Just (MkDealerAction $ normaliseDealerAction da)
+normaliseBovadaAction (Bov.MkTableAction ta) =
+  MkPostAction <$> normaliseTableAction ta
 
-normaliseTableAction :: Bov.TableAction (Amount "USD") -> Maybe (PostAction (Amount "USD"))
-normaliseTableAction (Bov.KnownPlayer po tav) = PostAction po <$> normaliseKnownTableAction tav
+normaliseTableAction
+  :: Bov.TableAction (Amount "USD") -> Maybe (PostAction (Amount "USD"))
+normaliseTableAction (Bov.KnownPlayer po tav) =
+  PostAction po <$> normaliseKnownTableAction tav
 normaliseTableAction (Bov.UnknownPlayer tav) = case tav of
   -- TODO make invalid states unrepresentable ;)
-  Bov.Post am -> error "Oh noes! A post action from an unknown player!"
+  Bov.Post     am -> error "Oh noes! A post action from an unknown player!"
   Bov.PostDead am -> error "Oh noes! A post action from an unknown player!"
-  _ -> Nothing
+  _               -> Nothing
 
-normaliseKnownTableAction :: Bov.TableActionValue (Amount "USD") -> Maybe (PostActionValue (Amount "USD"))
-normaliseKnownTableAction (Bov.Post am) = Just $ Post am
+normaliseKnownTableAction
+  :: Bov.TableActionValue (Amount "USD")
+  -> Maybe (PostActionValue (Amount "USD"))
+normaliseKnownTableAction (Bov.Post     am) = Just $ Post am
 normaliseKnownTableAction (Bov.PostDead am) = Just $ PostDead am
-normaliseKnownTableAction _ = Nothing
+normaliseKnownTableAction _                 = Nothing
 
 normaliseDealerAction :: Bov.DealerAction -> DealerAction
-normaliseDealerAction Bov.PlayerDeal = PlayerDeal
+normaliseDealerAction Bov.PlayerDeal            = PlayerDeal
 normaliseDealerAction (Bov.FlopDeal ca ca' ca2) = FlopDeal ca ca' ca2
-normaliseDealerAction (Bov.TurnDeal ca) = TurnDeal ca
-normaliseDealerAction (Bov.RiverDeal ca) = RiverDeal ca
+normaliseDealerAction (Bov.TurnDeal  ca       ) = TurnDeal ca
+normaliseDealerAction (Bov.RiverDeal ca       ) = RiverDeal ca
 
 normaliseBetAction :: Bov.BetAction (Amount "USD") -> BetAction (Amount "USD")
-normaliseBetAction (Bov.Call am) = Call am
-normaliseBetAction (Bov.Raise am am') = Raise am am'
+normaliseBetAction (Bov.Call am          ) = Call am
+normaliseBetAction (Bov.Raise      am am') = Raise am am'
 normaliseBetAction (Bov.AllInRaise am am') = AllInRaise am am'
-normaliseBetAction (Bov.Bet am) = Bet am
-normaliseBetAction (Bov.AllIn am) = AllIn am
-normaliseBetAction Bov.Fold = Fold
-normaliseBetAction Bov.Check = Check
+normaliseBetAction (Bov.Bet   am         ) = Bet am
+normaliseBetAction (Bov.AllIn am         ) = AllIn am
+normaliseBetAction Bov.Fold                = Fold
+normaliseBetAction Bov.Check               = Check
 
 -- TODO choose some number in the middle too
 getTestActs :: Num b => AvailableAction b -> [BetAction b]
-getTestActs (ACall b) = [Call b]
+getTestActs (ACall b           ) = [Call b]
 getTestActs (ARaiseBetween b b') = [Raise 0 b, Raise 0 b']
-getTestActs (ARaiseAllIn b) = [AllInRaise 0 b]
-getTestActs (AAllIn b) = [AllIn b]
-getTestActs AFold = [Fold]
-getTestActs ACheck = [Check]
-getTestActs (ABet b b') = [Bet b, Bet b']
+getTestActs (ARaiseAllIn b     ) = [AllInRaise 0 b]
+getTestActs (AAllIn      b     ) = [AllIn b]
+getTestActs AFold                = [Fold]
+getTestActs ACheck               = [Check]
+getTestActs (ABet b b')          = [Bet b, Bet b']
 
 -- TODO choose some number in the middle too
 getBadTestActs :: (SmallAmount b, Num b) => AvailableAction b -> [BetAction b]
-getBadTestActs (ACall b) = [Call $ b - smallestAmount, Call $ b + smallestAmount]
-getBadTestActs (ARaiseBetween b b') = [Raise 0 $ b - smallestAmount, Raise 0 $ b' + smallestAmount]
-getBadTestActs (ARaiseAllIn b) = [AllInRaise 0 $ b - smallestAmount, AllInRaise 0 $ b + smallestAmount]
-getBadTestActs (AAllIn b) = [AllIn $ b - smallestAmount, AllIn $ b + smallestAmount]
-getBadTestActs AFold = []
+getBadTestActs (ACall b) =
+  [Call $ b - smallestAmount, Call $ b + smallestAmount]
+getBadTestActs (ARaiseBetween b b') =
+  [Raise 0 $ b - smallestAmount, Raise 0 $ b' + smallestAmount]
+getBadTestActs (ARaiseAllIn b) =
+  [AllInRaise 0 $ b - smallestAmount, AllInRaise 0 $ b + smallestAmount]
+getBadTestActs (AAllIn b) =
+  [AllIn $ b - smallestAmount, AllIn $ b + smallestAmount]
+getBadTestActs AFold  = []
 getBadTestActs ACheck = []
-getBadTestActs (ABet b b') = [Bet $ b - smallestAmount, Bet $ b' + smallestAmount]
+getBadTestActs (ABet b b') =
+  [Bet $ b - smallestAmount, Bet $ b' + smallestAmount]
 
 outputHand
-  :: (Show b, Num b, Ord b, SmallAmount b, Pretty b) => Bov.History Bov.Bovada (Amount "USD") -> FilePath -> FilePath -> Int -> Either (GameErrorBundle (Amount "USD")) [Case b] -> IO ()
+  :: (Show b, Num b, Ord b, SmallAmount b, Pretty b)
+  => Bov.History Bov.Bovada (Amount "USD")
+  -> FilePath
+  -> FilePath
+  -> Int
+  -> Either (GameErrorBundle (Amount "USD")) [Case b]
+  -> IO ()
 outputHand hand originalFile handOutputDir handId cases = do
   -- let outFile = outputDir </> "out"
   case cases of
@@ -226,19 +256,37 @@ outputHand hand originalFile handOutputDir handId cases = do
               )
             let testActs = getTestActs =<< as
             forM_ testActs $ \testAct -> do
-              let res = runGame (emulateAction (MkPlayerAction (PlayerAction pos testAct))) gs
+              let
+                res = runGame
+                  (emulateAction (MkPlayerAction (PlayerAction pos testAct)))
+                  gs
               case res of
-                Left geb -> print "Available actions are wrong" >> (print $ pretty geb)
+                Left geb ->
+                  print "Available actions are wrong" >> (print $ pretty geb)
                 Right gs' -> pure ()
               pure ()
             let badTestActs = getBadTestActs =<< as
-            let foo =  badTestActs <&> \testAct -> let res = runGame (emulateAction (MkPlayerAction (PlayerAction pos testAct))) gs
-                                                      in case res of
-                                                        Left geb -> Nothing
-                                                        Right gs' -> Just $ unlines [prettyString gs, show pos, show $ prettyString <$> testAct]
+            let
+              foo = badTestActs <&> \testAct ->
+                let
+                  res = runGame
+                    (emulateAction (MkPlayerAction (PlayerAction pos testAct)))
+                    gs
+                in
+                  case res of
+                    Left geb -> Nothing
+                    Right gs' ->
+                      Just
+                        $ unlines
+                            [ prettyString gs
+                            , show pos
+                            , show $ prettyString <$> testAct
+                            ]
             case catMaybes foo of
               [] -> pure ()
-              ls -> print "This action should not have succeeded" >> (putStrLn `mapM_` ls)
+              ls ->
+                print "This action should not have succeeded"
+                  >> (putStrLn `mapM_` ls)
             pure ()
           (Just _, Left (T.unpack -> "No actors left")) -> pure ()
           (Just _, Left err) -> print "unexpected error" >> print err
@@ -281,7 +329,8 @@ bovadaHistoryToGameState Bov.History { Bov._handStakes, Bov._handPlayerMap, Bov.
     , _toActQueue        = Map.keys posToPlayer
               -- , _pastActions       = []
               -- , _futureActions     = _handActions
-    , _posToPlayer       =     posToPlayer, _streetInvestments = Map.empty
+    , _posToPlayer       = posToPlayer
+    , _streetInvestments = Map.empty
     , _activeBet = Just ActionFaced { _betType     = PostB
                                     , _amountFaced = getStake _handStakes
                                     , _raiseSize   = getStake _handStakes

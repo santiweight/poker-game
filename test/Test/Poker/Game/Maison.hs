@@ -3,15 +3,9 @@
 module Test.Poker.Game.Maison where
 
 import           Control.Lens
-import           Control.Lens.Extras            ( is )
-import           Control.Monad                  ( void )
 import qualified Data.Map.Strict               as Map
-import           Poker.Base
-import           Poker.Game.Bovada              ( emulateAction )
+import           Poker
 import           Poker.Game.Types
-import           Prettyprinter
-import           Test.Hspec
-import           Test.Poker.Game.Bovada         ( runGame )
 
 initialGameState' :: GameState BigBlind
 initialGameState' = initialGameState

@@ -16,7 +16,7 @@ import           Data.Map                       ( Map )
 import qualified Data.Map.Strict               as Map
 import           Data.Text.Prettyprint.Doc      ( Pretty(pretty) )
 import           GHC.Generics                   ( Generic )
-import           Poker.Base                     ( BigBlind
+import           Poker                          ( BigBlind
                                                 , Board
                                                 , Card(Card)
                                                 , Hand
