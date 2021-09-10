@@ -18,12 +18,13 @@ import           Data.Text.Prettyprint.Doc      ( Pretty(pretty) )
 import           GHC.Generics                   ( Generic )
 import           Poker.Base                     ( BigBlind
                                                 , Board
+                                                , Card(Card)
                                                 , Hand
                                                 , Position
                                                 , Pot
                                                 , Seat
                                                 , Stack(Stack)
-                                                , Stake, Card (Card)
+                                                , Stake
                                                 )
 import           Prettyprinter
 
@@ -45,12 +46,11 @@ data BetAction t
   | Check
   deriving (Read, Show, Eq, Ord, Functor)
 
-data PlayerAction t = PlayerAction
-  { position :: !Position
-  , action   :: !(BetAction t)
-  }
+data PlayerAction t = PlayerAction !Position !(BetAction t)
   deriving (Read, Show, Eq, Ord, Functor)
 
+-- TODO remove post/dead separation here:
+-- data PostAction t = PostAction !Position !t
 data PostActionValue t
   = Post !t
   | PostDead !t
