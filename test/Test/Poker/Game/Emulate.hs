@@ -19,7 +19,7 @@ import           Data.Map.Strict                ( Map )
 import           Data.Maybe                     ( catMaybes
 
 
-                                                , mapMaybe
+                                                , mapMaybe, fromJust
 
                                                 )
 import           Data.Text                      ( Text )
@@ -142,10 +142,9 @@ getCases hand' =
         $ concatM (go <$> tail postflop')
  where
   go
-    :: ( SmallAmount b
+    :: ( IsBet b
        , Pretty b
        , Show b
-       , Num b
        , Ord b
        , MonadWriter [Case b] m
        , MonadError (GameErrorBundle b) m
@@ -201,32 +200,36 @@ normaliseBetAction Bov.Fold                = Fold
 normaliseBetAction Bov.Check               = Check
 
 -- TODO choose some number in the middle too
-getTestActs :: Num b => AvailableAction b -> [BetAction b]
+getTestActs :: IsBet b => AvailableAction b -> [BetAction b]
 getTestActs (ACall b           ) = [Call b]
-getTestActs (ARaiseBetween b b') = [Raise 0 b, Raise 0 b']
-getTestActs (ARaiseAllIn b     ) = [AllInRaise 0 b]
+-- TODO fix raiseBy
+getTestActs (ARaiseBetween b b') = [Raise mempty b, Raise mempty b']
+-- TODO fix raiseBy
+getTestActs (ARaiseAllIn b     ) = [AllInRaise mempty b]
 getTestActs (AAllIn      b     ) = [AllIn b]
 getTestActs AFold                = [Fold]
 getTestActs ACheck               = [Check]
 getTestActs (ABet b b')          = [Bet b, Bet b']
 
 -- TODO choose some number in the middle too
-getBadTestActs :: (SmallAmount b, Num b) => AvailableAction b -> [BetAction b]
+getBadTestActs :: (IsBet b) => AvailableAction b -> [BetAction b]
 getBadTestActs (ACall b) =
-  [Call $ b - smallestAmount, Call $ b + smallestAmount]
+  [Call . fromJust $ b `minus` smallestAmount, Call $ b `add` smallestAmount]
 getBadTestActs (ARaiseBetween b b') =
-  [Raise 0 $ b - smallestAmount, Raise 0 $ b' + smallestAmount]
+  -- TODO fix raiseBy amount
+  [Raise mempty . fromJust $ b `minus` smallestAmount, Raise mempty $ b' `add` smallestAmount]
 getBadTestActs (ARaiseAllIn b) =
-  [AllInRaise 0 $ b - smallestAmount, AllInRaise 0 $ b + smallestAmount]
+  -- TODO fix raiseBy amount
+  [AllInRaise mempty . fromJust $ b `minus` smallestAmount, AllInRaise mempty $ b `add` smallestAmount]
 getBadTestActs (AAllIn b) =
-  [AllIn $ b - smallestAmount, AllIn $ b + smallestAmount]
+  [AllIn . fromJust $ b `minus` smallestAmount, AllIn $ b `add` smallestAmount]
 getBadTestActs AFold  = []
 getBadTestActs ACheck = []
 getBadTestActs (ABet b b') =
-  [Bet $ b - smallestAmount, Bet $ b' + smallestAmount]
+  [Bet . fromJust $ b `minus` smallestAmount, Bet $ b' `add` smallestAmount]
 
 outputHand
-  :: (Show b, Num b, Ord b, SmallAmount b, Pretty b)
+  :: (Show b, Ord b, IsBet b, Pretty b)
   => Bov.History Bov.Bovada (Amount "USD")
   -> FilePath
   -> FilePath
@@ -320,10 +323,10 @@ instance Pretty (Amount b) where
 unit_output :: IO ()
 unit_output = outputAvailableActions
 
-bovadaHistoryToGameState :: Num b => Bov.History Bov.Bovada b -> GameState b
+bovadaHistoryToGameState :: IsBet b => Bov.History Bov.Bovada b -> GameState b
 bovadaHistoryToGameState Bov.History { Bov._handStakes, Bov._handPlayerMap, Bov._handSeatMap, Bov._handActions, Bov._handText }
   = GameState
-    { _potSize           = Pot 0
+    { _potSize           = Pot mempty
     , _street            = InitialTable
     , _stateStakes       = _handStakes
     , _aggressor         = Nothing

@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
+
 module Test.Poker.Game.Maison where
 
 import           Control.Lens
@@ -11,9 +12,9 @@ initialGameState' :: GameState BigBlind
 initialGameState' = initialGameState
 
 initialGameState :: GameState BigBlind
-initialGameState = GameState { _potSize           = 0
+initialGameState = GameState { _potSize           = mempty
                              , _street            = PreFlopBoard InitialTable
-                             , _stateStakes       = Stake 1
+                             , _stateStakes       = Stake smallestAmount
                              , _aggressor         = Nothing
                              , _toActQueue        = []
                              , _posToPlayer       = Map.empty

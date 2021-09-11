@@ -1,90 +1,90 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Poker.Game.AvailableActions where
--- An active player is one whose playerState is set to In.
--- canPostBlind :: Game -> PlayerName -> Blind -> Either GameErr ()
--- canPostBlind game@Game {..} name blind
---   | _street /= PreDeal = Left $ InvalidMove name InvalidActionForStreet
---   | activePlayersCount < 2 =
---     Left $
---       InvalidMove name $
---         CannotPostBlind
---           "Cannot post blind unless a minimum of two active players are sat at table"
---   | otherwise = case blind of
---     Big -> if chipCount < _bigBlind then notEnoughChipsErr else Right ()
---     Small -> if chipCount < _smallBlind then notEnoughChipsErr else Right ()
---     NoBlind -> Left $ InvalidMove name CannotPostNoBlind
---   where
---     chipCount = _chips $ fromJust $ getGamePlayer game name
---     activePlayersCount = length $ getActivePlayers _players
 --     notEnoughChipsErr = Left $ InvalidMove name NotEnoughChipsForAction
+--     activePlayersCount = length $ getActivePlayers _players
+--     chipCount = _chips $ fromJust $ getGamePlayer game name
+--   where
+--     NoBlind -> Left $ InvalidMove name CannotPostNoBlind
+--     Small -> if chipCount < _smallBlind then notEnoughChipsErr else Right ()
+--     Big -> if chipCount < _bigBlind then notEnoughChipsErr else Right ()
+--   | otherwise = case blind of
+--           "Cannot post blind unless a minimum of two active players are sat at table"
+--         CannotPostBlind
+--       InvalidMove name $
+--     Left $
+--   | activePlayersCount < 2 =
+--   | _street /= PreDeal = Left $ InvalidMove name InvalidActionForStreet
+-- canPostBlind game@Game {..} name blind
+-- canPostBlind :: Game -> PlayerName -> Blind -> Either GameErr ()
+-- An active player is one whose playerState is set to In.
+-- Cannot post a blind to start a game unless at least two active players are present.
+-- -- when (< 2 players state set to sat in)
+-- -- Therefore the acting in turn rule wont apply for that first move
+-- -- position as long as there aren't enough players sat in to start a game
 
 -- -- | The first player to post their blinds in the predeal stage can do it from any
--- -- position as long as there aren't enough players sat in to start a game
--- -- Therefore the acting in turn rule wont apply for that first move
+--     notEnoughChipsErr = Left $ InvalidMove name NotEnoughChipsForAction
+--     activePlayersCount = length $ getActivePlayers _players
+--     chipCount = _chips $ fromJust $ getGamePlayer game name
+--   where
+--     NoBlind -> Left $ InvalidMove name CannotPostNoBlind
+--     Small -> if chipCount < _smallBlind then notEnoughChipsErr else Right ()
+--     Big -> if chipCount < _bigBlind then notEnoughChipsErr else Right ()
+--   | otherwise = case blind of
+--           "Cannot post blind unless a minimum of two active players are sat at table"
+--         CannotPostBlind
+--       InvalidMove name $
+--     Left $
+--   | activePlayersCount < 2 =
+--   | _street /= PreDeal = Left $ InvalidMove name InvalidActionForStreet
+-- canPostBlind game@Game {..} name blind
+-- canPostBlind :: Game -> PlayerName -> Blind -> Either GameErr ()
+-- An active player is one whose playerState is set to In.
+
+
+-- Cannot post a blind to start a game unless at least two active players are present.
+
+--     notEnoughChipsErr = Left $ InvalidMove name NotEnoughChipsForAction
+--     activePlayersCount = length $ getActivePlayers _players
+--     chipCount = _chips $ fromJust $ getGamePlayer game name
+--   where
+--     NoBlind -> Left $ InvalidMove name CannotPostNoBlind
+--     Small -> if chipCount < _smallBlind then notEnoughChipsErr else Right ()
+--     Big -> if chipCount < _bigBlind then notEnoughChipsErr else Right ()
+--   | otherwise = case blind of
+--           "Cannot post blind unless a minimum of two active players are sat at table"
+--         CannotPostBlind
+--       InvalidMove name $
+--     Left $
+--   | activePlayersCount < 2 =
+--   | _street /= PreDeal = Left $ InvalidMove name InvalidActionForStreet
+-- canPostBlind game@Game {..} name blind
+-- canPostBlind :: Game -> PlayerName -> Blind -> Either GameErr ()
+-- An active player is one whose playerState is set to In.
+-- Cannot post a blind to start a game unless at least two active players are present.
 -- -- when (< 2 players state set to sat in)
--- Cannot post a blind to start a game unless at least two active players are present.
--- An active player is one whose playerState is set to In.
--- canPostBlind :: Game -> PlayerName -> Blind -> Either GameErr ()
--- canPostBlind game@Game {..} name blind
---   | _street /= PreDeal = Left $ InvalidMove name InvalidActionForStreet
---   | activePlayersCount < 2 =
---     Left $
---       InvalidMove name $
---         CannotPostBlind
---           "Cannot post blind unless a minimum of two active players are sat at table"
---   | otherwise = case blind of
---     Big -> if chipCount < _bigBlind then notEnoughChipsErr else Right ()
---     Small -> if chipCount < _smallBlind then notEnoughChipsErr else Right ()
---     NoBlind -> Left $ InvalidMove name CannotPostNoBlind
---   where
---     chipCount = _chips $ fromJust $ getGamePlayer game name
---     activePlayersCount = length $ getActivePlayers _players
-
---     notEnoughChipsErr = Left $ InvalidMove name NotEnoughChipsForAction
-
-
--- Cannot post a blind to start a game unless at least two active players are present.
--- An active player is one whose playerState is set to In.
--- canPostBlind :: Game -> PlayerName -> Blind -> Either GameErr ()
--- canPostBlind game@Game {..} name blind
---   | _street /= PreDeal = Left $ InvalidMove name InvalidActionForStreet
---   | activePlayersCount < 2 =
---     Left $
---       InvalidMove name $
---         CannotPostBlind
---           "Cannot post blind unless a minimum of two active players are sat at table"
---   | otherwise = case blind of
---     Big -> if chipCount < _bigBlind then notEnoughChipsErr else Right ()
---     Small -> if chipCount < _smallBlind then notEnoughChipsErr else Right ()
---     NoBlind -> Left $ InvalidMove name CannotPostNoBlind
---   where
---     chipCount = _chips $ fromJust $ getGamePlayer game name
---     activePlayersCount = length $ getActivePlayers _players
---     notEnoughChipsErr = Left $ InvalidMove name NotEnoughChipsForAction
+-- -- Therefore the acting in turn rule wont apply for that first move
+-- -- position as long as there aren't enough players sat in to start a game
 
 -- -- | The first player to post their blinds in the predeal stage can do it from any
--- -- position as long as there aren't enough players sat in to start a game
--- -- Therefore the acting in turn rule wont apply for that first move
--- -- when (< 2 players state set to sat in)
--- Cannot post a blind to start a game unless at least two active players are present.
--- An active player is one whose playerState is set to In.
--- canPostBlind :: Game -> PlayerName -> Blind -> Either GameErr ()
--- canPostBlind game@Game {..} name blind
---   | _street /= PreDeal = Left $ InvalidMove name InvalidActionForStreet
---   | activePlayersCount < 2 =
---     Left $
---       InvalidMove name $
---         CannotPostBlind
---           "Cannot post blind unless a minimum of two active players are sat at table"
---   | otherwise = case blind of
---     Big -> if chipCount < _bigBlind then notEnoughChipsErr else Right ()
---     Small -> if chipCount < _smallBlind then notEnoughChipsErr else Right ()
---     NoBlind -> Left $ InvalidMove name CannotPostNoBlind
---   where
---     chipCount = _chips $ fromJust $ getGamePlayer game name
---     activePlayersCount = length $ getActivePlayers _players
 --     notEnoughChipsErr = Left $ InvalidMove name NotEnoughChipsForAction
+--     activePlayersCount = length $ getActivePlayers _players
+--     chipCount = _chips $ fromJust $ getGamePlayer game name
+--   where
+--     NoBlind -> Left $ InvalidMove name CannotPostNoBlind
+--     Small -> if chipCount < _smallBlind then notEnoughChipsErr else Right ()
+--     Big -> if chipCount < _bigBlind then notEnoughChipsErr else Right ()
+--   | otherwise = case blind of
+--           "Cannot post blind unless a minimum of two active players are sat at table"
+--         CannotPostBlind
+--       InvalidMove name $
+--     Left $
+--   | activePlayersCount < 2 =
+--   | _street /= PreDeal = Left $ InvalidMove name InvalidActionForStreet
+-- canPostBlind game@Game {..} name blind
+-- canPostBlind :: Game -> PlayerName -> Blind -> Either GameErr ()
+-- An active player is one whose playerState is set to In.
 
 
 -- Cannot post a blind to start a game unless at least two active players are present.
@@ -93,6 +93,7 @@ import           Data.List.NonEmpty             ( NonEmpty )
 import qualified Data.List.NonEmpty            as NonEmpty
 import           Data.Maybe                     ( fromJust
                                                 , fromMaybe
+                                                , isJust
                                                 , isNothing
                                                 )
 import           Data.Text                      ( Text )
@@ -135,7 +136,7 @@ instance Pretty b => Pretty (AvailableAction b) where
   pretty (ABet b b')          = "ABet" <+> pretty b <+> pretty b'
 
 availableActions
-  :: (Pretty b, Num b, Ord b, SmallAmount b)
+  :: (Pretty b, Ord b, IsBet b)
   => GameState b
   -> Either Text (Position, [AvailableAction b])
 availableActions st@GameState { _potSize, _street, _stateStakes, _aggressor, _toActQueue, _posToPlayer, _streetInvestments, _activeBet }
@@ -157,7 +158,7 @@ availableActions st@GameState { _potSize, _street, _stateStakes, _aggressor, _to
           InitialTable     -> Left "InitialTable"
 
 getStreetAvailableActions
-  :: (Pretty b, Num b, Ord b, SmallAmount b)
+  :: (Pretty b, Ord b, IsBet b)
   => Position
   -> GameState b
   -> Either Text (Position, [AvailableAction b])
@@ -205,35 +206,34 @@ getStreetAvailableActions activePlayer st@GameState { _activeBet, _potSize, _sta
             .  to fromJust
             .  stack
             .  to _unStack
-        streetInv = st ^. streetInvestments . at activePlayer . non 0
+        streetInv = st ^. streetInvestments . at activePlayer . non mempty
         foldA     = AFold
         raiseAs   = fromMaybe []
           $ tryRaise _potSize streetInv (Stack activePlayerStack) activeBet
         callA
-          | activePlayerStack + streetInv <= amount = AAllIn activePlayerStack
+          | activePlayerStack `add` streetInv <= amount = AAllIn
+            activePlayerStack
           | streetInv == amount && isNothing _aggressor = ACheck
-          | otherwise = if amount - streetInv > 0
-            then ACall (amount - streetInv)
-            else ACheck
+          | otherwise = maybe ACheck ACall (amount `minus` streetInv)
       pure (activePlayer, callA : foldA : raiseAs)
  where
   prettyString :: Pretty a => a -> String
   prettyString = renderString . layoutPretty defaultLayoutOptions . pretty
   tryRaise
-    :: (Num b, Ord b, SmallAmount b)
+    :: (Ord b, IsBet b)
     => Pot b
     -> b
     -> Stack b
     -> ActionFaced b
     -> Maybe [AvailableAction b]
   tryRaise (Pot potSize) streetInv (Stack plStack) (ActionFaced _ amountFaced raiseSize)
-    = let totalAvail = streetInv + plStack
-          minRaise   = amountFaced + raiseSize
+    = let totalAvail = streetInv `add` plStack
+          minRaise   = amountFaced `add` raiseSize
       in  if totalAvail < minRaise
             then if totalAvail > amountFaced
-              then Just [ARaiseAllIn (plStack + streetInv)]
+              then Just [ARaiseAllIn (plStack `add` streetInv)]
               else Nothing
-            else Just [ARaiseBetween minRaise (streetInv + plStack)]
+            else Just [ARaiseBetween minRaise (streetInv `add` plStack)]
 
 
 -- checkPlayerSatAtTable :: Game -> PlayerName -> Either GameErr ()

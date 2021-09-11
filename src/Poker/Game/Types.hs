@@ -157,6 +157,7 @@ data GameError g = PlayerNotFound
                                   | AllInNotFullStack { _stackSize :: g, _badAllInAct :: Action g}
                                   | ActedPreDeal
                | NoPlayersInQueue
+               | NewActionFacedLessThanPrevious
                | CustomError String
   deriving (Show, Eq, Functor)
 

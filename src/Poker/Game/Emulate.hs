@@ -58,18 +58,17 @@ import           Prettyprinter                  ( Pretty(pretty)
 import           Prettyprinter.Render.String
 
 type IsGame m b
-  = ( SmallAmount b
+  = ( IsBet b
     , Pretty b
     , Show b
-    , Num b
     , Ord b
     , MonadState (GameState b) m
     , MonadError (GameErrorBundle b) m
     )
 
 
-incPot :: (Num b, MonadState (GameState b) m) => b -> m ()
-incPot bet = potSize . mapped += bet
+incPot :: (IsBet b, MonadState (GameState b) m) => b -> m ()
+incPot bet = potSize . mapped %= add bet
 
 getPlayer :: MonadReader (GameState b) m => Position -> m (Maybe (Player b))
 getPlayer pos_ = ask <&> view (posToPlayer . at pos_)
@@ -77,19 +76,18 @@ getPlayer pos_ = ask <&> view (posToPlayer . at pos_)
 -- Reduce state pot size
 decPot :: (IsGame m b) => Action b -> b -> m (Pot b)
 decPot a amount = do
-  checkPot <- potSize <%= dec amount
-  mErrorAssert a (checkPot >= Pot 0) NegativePotSize
-  return checkPot
+  newPotSizeMay <- use potSize <&> dec amount
+  maybeToErrorBundle a NegativePotSize newPotSizeMay
  where
-  dec :: Num b => b -> Pot b -> Pot b
-  dec betSize (Pot potSize_) = Pot $ potSize_ - betSize
+  dec :: IsBet b => b -> Pot b -> Maybe (Pot b)
+  dec betSize (Pot potSize_) = Pot <$> potSize_ `minus` betSize
 
 -- Increase stack size at a seat position
 incStack :: (IsGame m b) => Position -> b -> Action b -> m ()
 incStack pos amount a = do
   _ <- getStack a pos
   -- mErrorAssert (playerStack - amount > 0) (NegativePlayerStack badAct)
-  atPlayerStack pos -= amount
+  atPlayerStack pos %= add amount
 
 -- Decrease stack size at a seat position
 decStack
@@ -99,9 +97,11 @@ decStack
   -> Action b
   -> m ()
 decStack pos amount badAct = do
-  playerStack <- getStack badAct pos
-  mErrorAssert badAct (playerStack - amount >= 0) (NegativePlayerStack badAct)
-  atPlayerStack pos -= amount
+  playerStack    <- getStack badAct pos
+  newPlayerStack <- maybeToErrorBundle badAct
+                                       (NegativePlayerStack badAct)
+                                       (playerStack `minus` amount)
+  atPlayerStack pos .= newPlayerStack
 
 atPlayerStack :: Position -> Traversal' (GameState t) t
 atPlayerStack pos =
@@ -166,7 +166,7 @@ emulateAction a = do
         InitialTable -> throwBundleError a (PlayerActedPreDeal a)
         _            -> pure ()
       betSize <- flip (getBetSize pos) actVal
-        =<< use (streetInvestments . at pos . non 0)
+        =<< use (streetInvestments . at pos . non mempty)
       incPot betSize
       when (isAggressive actVal) $ aggressor ?= pos
       processActiveBet actVal
@@ -196,7 +196,7 @@ emulateAction a = do
         InitialTable   -> toActQueue %= sortPreflop
         PreFlopBoard _ -> toActQueue %= sortPreflop
         _              -> do
-          streetInvestments . each .= 0
+          streetInvestments . each .= mempty
           toActQueue %= sortPostflop
     MkPostAction act -> handlePostAction act
   -- when (any actionMatches )
@@ -217,24 +217,25 @@ emulateAction a = do
     Check          -> False
   getBetSize :: Position -> b -> BetAction b -> m b
   getBetSize pos previousInvestment act = do
-    activeBet <- fromMaybe 0 <$> preuse (activeBet . _Just . amountFaced)
+    activeBetSize <- fromMaybe mempty
+      <$> preuse (activeBet . _Just . amountFaced)
     case act of
       Call amount -> do
-        mErrorAssert a (amount == activeBet - previousInvestment)
-          $ CallWrongAmount activeBet a
+        mErrorAssert a (amount `add` previousInvestment == activeBetSize)
+          $ CallWrongAmount activeBetSize a
         pure amount -- - previousInvestment
-      Raise      _ amountTo -> pure $ amountTo - previousInvestment
-      AllInRaise _ amountTo -> pure $ amountTo - previousInvestment
+      Raise      amountBy _ -> pure amountBy
+      AllInRaise amountBy _ -> pure amountBy
       Bet   amount          -> pure amount
       AllIn amount          -> do
         playerStack <- getStack a pos
         mErrorAssert a (amount == playerStack) (AllInNotFullStack playerStack a)
         pure amount
-      Fold  -> pure 0
-      Check -> pure 0
+      Fold  -> pure mempty
+      Check -> pure mempty
   processInvestment :: (IsGame m b) => Position -> b -> m ()
   processInvestment pos betSize =
-    streetInvestments . at pos . non 0 %= (+ betSize)
+    streetInvestments . at pos . non mempty %= add betSize
   doRotateNextActor :: IsGame m b => Position -> BetAction t -> m ()
   doRotateNextActor pos =
     let doRemove = removeNextActor a pos
@@ -249,22 +250,27 @@ emulateAction a = do
           Check          -> doRotate
   processActiveBet :: (IsGame m b) => BetAction b -> m ()
   processActiveBet = \case
-    Call _                -> pure ()
-    Raise      _ amountTo -> incActiveBet amountTo
-    AllInRaise _ amountTo -> incActiveBet amountTo
-    Bet   amount          -> incActiveBet amount
-    AllIn amount          -> do
-      faced <- fromMaybe 0 <$> preuse (activeBet . _Just . amountFaced)
-      if amount > faced then incActiveBet amount else pure ()
+    Call _                       -> pure ()
+    Raise      amountBy amountTo -> setActiveBet amountBy amountTo
+    AllInRaise amountBy amountTo -> setActiveBet amountBy amountTo
+    Bet   amount                 -> setActiveBet amount amount
+    AllIn amount                 -> do
+      faced <- fromMaybe mempty <$> preuse (activeBet . _Just . amountFaced)
+      -- TODO track whether action is opened up. Action is only open if minimum raise
+      -- has been reached
+      if amount > faced
+        then setActiveBet (fromJust $ amount `minus` faced) amount
+        else pure ()
     Fold  -> pure ()
     Check -> pure ()
-  incActiveBet :: IsGame m b => b -> m ()
-  incActiveBet newFacedAmount = use activeBet >>= \case
+  setActiveBet :: IsGame m b => b -> b -> m ()
+  setActiveBet raiseBy newFacedAmount = use activeBet >>= \case
     Nothing -> activeBet ?= ActionFaced OneB newFacedAmount newFacedAmount
-    Just (ActionFaced bType amountFaced _) -> activeBet ?= ActionFaced
-      (succ bType)
-      newFacedAmount
-      (newFacedAmount - amountFaced)
+    Just (ActionFaced bType amountFaced _) -> do
+      raiseAmount <- maybeToErrorBundle a
+                                        NewActionFacedLessThanPrevious
+                                        (newFacedAmount `minus` amountFaced)
+      activeBet ?= ActionFaced (succ bType) newFacedAmount raiseAmount
   handlePostAction :: (IsGame m b) => PostAction b -> m ()
   -- handlePostAction = _
   handlePostAction (PostAction pos val) = case val of
