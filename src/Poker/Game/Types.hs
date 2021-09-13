@@ -27,6 +27,7 @@ import           Poker                          ( BigBlind
                                                 , Stake
                                                 )
 import           Prettyprinter
+import Data.Data
 
 data BetAction t
   = Call !t
@@ -44,9 +45,9 @@ data BetAction t
   | AllIn !t
   | Fold
   | Check
-  deriving (Read, Show, Eq, Ord, Functor)
+  deriving (Read, Show, Eq, Ord, Functor, Data, Typeable)
 
-data PlayerAction t = PlayerAction !Position !(BetAction t)
+data PlayerAction t = PlayerAction { _pos :: !Position , _action :: !(BetAction t) }
   deriving (Read, Show, Eq, Ord, Functor)
 
 -- TODO remove post/dead separation here:
@@ -188,6 +189,7 @@ type ActionRange t = Map Hand [BetAction t]
 
 makeLenses 'EvalState
 makeLenses ''GameError
+makeLenses ''PlayerAction
 makeLenses ''ActionFaced
 makePrisms ''GameError
 makeLenses ''GameErrorBundle

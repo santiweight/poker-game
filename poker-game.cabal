@@ -48,6 +48,7 @@ library
     Poker.Game.Emulate
     Poker.Game.AvailableActions
     Poker.Game.Types
+    Poker.Game.Normalise
 
   -- other-modules:
   -- other-extensions:
@@ -56,7 +57,7 @@ library
     , containers
     , lens
     , mtl
-    , poker-base
+    , poker
     , poker-handhistory
     , prettyprinter
     , text
