@@ -302,7 +302,7 @@ mErrorAssert :: IsGame m b => Action b -> Bool -> GameError b -> m ()
 mErrorAssert a b e = if b then return () else throwBundleError a e
 
 throwBundleError :: IsGame m b => Action b -> GameError b -> m a
-throwBundleError a e = throwError . (\st -> GameErrorBundle e st a) =<< get
+throwBundleError a e = throwError . (\st -> GameErrorBundle e st $ Just a) =<< get
 
 maybeToErrorBundle :: IsGame m b => Action b -> GameError b -> Maybe a -> m a
 maybeToErrorBundle a e mb = case mb of

@@ -168,12 +168,12 @@ instance Pretty g => Pretty (GameError g) where
 data GameErrorBundle g = GameErrorBundle
   { _bundleError         :: GameError g
   , _bundleState         :: GameState g
-  , _bundleCausingAction :: Action g
+  , _bundleCausingAction :: Maybe (Action g)
   }
 
 instance Pretty g => Pretty (GameErrorBundle g) where
   pretty (GameErrorBundle ge gs ac) = hang 4 $ vsep
-    ["GameErrorBundle:", pretty ge, pretty gs, viaShow . fmap pretty $ ac]
+    ["GameErrorBundle:", pretty ge, pretty gs, viaShow . (fmap . fmap) pretty $ ac]
 
 deriving instance Show a => Show (GameErrorBundle a)
 deriving instance Eq a => Eq (GameErrorBundle a)
@@ -184,6 +184,7 @@ data EvalState t = EvalState
   , _accRanges   :: Map String (ActionRange t)
   , _handState   :: GameState t
   }
+  deriving Show
 
 type ActionRange t = Map Hand [BetAction t]
 
