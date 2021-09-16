@@ -193,8 +193,6 @@ getStreetAvailableActions activePlayer st@GameState { _activeBet, _potSize, _sta
         .  T.pack
         $  "active player: "
         <> show activePlayer
-        <> ", posToPlayer"
-        <> show (prettyString <$> st ^. posToPlayer)
         )
         pure
         activePlayerStackMay

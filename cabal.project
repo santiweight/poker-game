@@ -1,5 +1,5 @@
 packages:
- *.cabal
+ poker-game.cabal
  ../base
  ../history-bovada
 

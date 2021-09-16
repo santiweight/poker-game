@@ -193,5 +193,7 @@ makeLenses ''GameError
 makeLenses ''PlayerAction
 makeLenses ''ActionFaced
 makePrisms ''GameError
+makePrisms ''Board
+makePrisms ''DealerAction
 makeLenses ''GameErrorBundle
 makeLenses ''GameState

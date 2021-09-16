@@ -108,7 +108,8 @@ test-suite all-tests
     , megaparsec
     , lens
     , mtl
-    , poker-base
+    , base
+    , poker
     , poker-handhistory
     , poker-game
     , pretty-show
