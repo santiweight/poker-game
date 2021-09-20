@@ -58,7 +58,7 @@ library
     , lens
     , mtl
     , poker
-    , poker-handhistory
+    , history-bovada
     , prettyprinter
     , text
   hs-source-dirs: src
@@ -110,7 +110,7 @@ test-suite all-tests
     , mtl
     , base
     , poker
-    , poker-handhistory
+    , history-bovada
     , poker-game
     , pretty-show
     , prettyprinter
