@@ -17,10 +17,8 @@ import           Data.List.Extra                ( splitOn )
 import qualified Data.Map.Strict               as Map
 import           Data.Map.Strict                ( Map )
 import           Data.Maybe                     ( catMaybes
-
-
-                                                , mapMaybe, fromJust
-
+                                                , fromJust
+                                                , mapMaybe
                                                 )
 import           Data.Text                      ( Text )
 import qualified Data.Text                     as T
@@ -28,10 +26,8 @@ import qualified Data.Text.IO                  as T
 import           Data.Text.Prettyprint.Doc.Render.String
 import           Data.Void                      ( Void )
 import           Money                          ( Approximation(Floor)
-                                                , defaultDecimalConf
                                                 , dense'
                                                 , discreteFromDense
-                                                , discreteToDecimal
                                                 )
 import           Poker
 import           Poker.Game.AvailableActions    ( AvailableAction(..)
@@ -176,10 +172,14 @@ getBadTestActs (ACall b) =
   [Call . fromJust $ b `minus` smallestAmount, Call $ b `add` smallestAmount]
 getBadTestActs (ARaiseBetween b b') =
   -- TODO fix raiseBy amount
-  [Raise mempty . fromJust $ b `minus` smallestAmount, Raise mempty $ b' `add` smallestAmount]
+  [ Raise mempty . fromJust $ b `minus` smallestAmount
+  , Raise mempty $ b' `add` smallestAmount
+  ]
 getBadTestActs (ARaiseAllIn b) =
   -- TODO fix raiseBy amount
-  [AllInRaise mempty . fromJust $ b `minus` smallestAmount, AllInRaise mempty $ b `add` smallestAmount]
+  [ AllInRaise mempty . fromJust $ b `minus` smallestAmount
+  , AllInRaise mempty $ b `add` smallestAmount
+  ]
 getBadTestActs (AAllIn b) =
   [AllIn . fromJust $ b `minus` smallestAmount, AllIn $ b `add` smallestAmount]
 getBadTestActs AFold  = []
@@ -264,21 +264,15 @@ outputHand hand originalFile handOutputDir handId cases = do
         -- writeFile caseOutputFile . docToString $ doc
         pure ()
       )
- where
-  docToString = renderString . layoutPretty defaultLayoutOptions
 
-  prettyString :: Pretty a => a -> String
-  prettyString = renderString . layoutPretty defaultLayoutOptions . pretty
 concatM :: (Monad m) => [a -> m a] -> (a -> m a)
 concatM = foldr (>=>) pure
-
 
 runGame :: StateT s (Except e) a -> s -> Either e s
 runGame m = runExcept . execStateT m
 
 unit_output :: IO ()
 unit_output = outputAvailableActions
-
 
 bovadaHistoryToGameState :: IsBet b => Bov.History Bov.Bovada b -> GameState b
 bovadaHistoryToGameState Bov.History { Bov._handStakes, Bov._handPlayerMap, Bov._handSeatMap, Bov._handActions, Bov._handText }
@@ -308,8 +302,7 @@ bovadaHistoryToGameState Bov.History { Bov._handStakes, Bov._handPlayerMap, Bov.
     m_ha <&> \holding -> Player { _playerHolding = holding, _stack = Stack b }
   _wE = Map.mapMaybe (`Map.lookup` _handPlayerMap) _handSeatMap--
 
-normaliseBovadaAction
-  :: Bov.Action b -> Maybe (Action b)
+normaliseBovadaAction :: Bov.Action b -> Maybe (Action b)
 normaliseBovadaAction (Bov.MkBetAction po ba) =
   Just $ MkPlayerAction $ PlayerAction po (normaliseBetAction ba)
 normaliseBovadaAction (Bov.MkDealerAction da) =
@@ -317,8 +310,7 @@ normaliseBovadaAction (Bov.MkDealerAction da) =
 normaliseBovadaAction (Bov.MkTableAction ta) =
   MkPostAction <$> normaliseTableAction ta
 
-normaliseTableAction
-  :: Bov.TableAction b -> Maybe (PostAction b)
+normaliseTableAction :: Bov.TableAction b -> Maybe (PostAction b)
 normaliseTableAction (Bov.KnownPlayer po tav) =
   PostAction po <$> normaliseKnownTableAction tav
 normaliseTableAction (Bov.UnknownPlayer tav) = case tav of
@@ -328,8 +320,7 @@ normaliseTableAction (Bov.UnknownPlayer tav) = case tav of
   _               -> Nothing
 
 normaliseKnownTableAction
-  :: Bov.TableActionValue b
-  -> Maybe (PostActionValue b)
+  :: Bov.TableActionValue b -> Maybe (PostActionValue b)
 normaliseKnownTableAction (Bov.Post     am) = Just $ Post am
 normaliseKnownTableAction (Bov.PostDead am) = Just $ PostDead am
 normaliseKnownTableAction _                 = Nothing

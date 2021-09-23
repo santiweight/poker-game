@@ -17,33 +17,7 @@ maintainer:          santiagoweight@forwardnetworks.com
 build-type:          Simple
 extra-source-files:  CHANGELOG.md
 
-common common-extensions
-  default-extensions: ConstraintKinds
-                      DataKinds
-                      DeriveDataTypeable
-                      DeriveFunctor
-                      DeriveGeneric
-                      DeriveTraversable
-                      EmptyCase
-                      FlexibleContexts
-                      GADTs
-                      LambdaCase
-                      LiberalTypeSynonyms
-                      PartialTypeSignatures
-                      PatternSynonyms
-                      PackageImports
-                      PolyKinds
-                      RankNTypes
-                      ScopedTypeVariables
-                      StandaloneDeriving
-                      TypeApplications
-                      TypeOperators
-                      TypeFamilies
-                      UnicodeSyntax
-                      TemplateHaskell
-
 library
-  import: common-extensions
   exposed-modules:
     Poker.Game.Emulate
     Poker.Game.AvailableActions
