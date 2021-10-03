@@ -2,13 +2,12 @@
 module Poker.Game.Normalise where
 
 import Poker
-import qualified Poker.History.Types as Bov
 import Poker.Game.Types
 import qualified Data.Map.Strict as Map
 import Data.Functor ((<&>))
-import qualified Poker.History.Model as Bov
+import qualified Poker.History.Bovada.Model as Bov
 
-bovadaHistoryToGameState :: IsBet b => Bov.History Bov.Bovada b -> GameState b
+bovadaHistoryToGameState :: IsBet b => Bov.History b -> GameState b
 bovadaHistoryToGameState Bov.History { Bov._handStakes, Bov._handPlayerMap, Bov._handSeatMap, Bov._handActions, Bov._handText }
   = GameState
     { _potSize           = Pot mempty
@@ -21,8 +20,8 @@ bovadaHistoryToGameState Bov.History { Bov._handStakes, Bov._handPlayerMap, Bov.
     , _posToPlayer       = posToPlayer
     , _streetInvestments = Map.empty
     , _activeBet = Just ActionFaced { _betType     = PostB
-                                    , _amountFaced = getStake _handStakes
-                                    , _raiseSize   = getStake _handStakes
+                                    , _amountFaced = unStake _handStakes
+                                    , _raiseSize   = unStake _handStakes
                                     }
     }
  where
@@ -39,7 +38,7 @@ bovadaHistoryToGameState Bov.History { Bov._handStakes, Bov._handPlayerMap, Bov.
 normaliseBovadaAction
   :: Bov.Action b -> Maybe (Action b)
 normaliseBovadaAction (Bov.MkBetAction po ba) =
-  Just $ MkPlayerAction $ PlayerAction po (normaliseBetAction ba)
+  Just $ MkPlayerAction $ PlayerAction po ba
 normaliseBovadaAction (Bov.MkDealerAction da) =
   Just (MkDealerAction $ normaliseDealerAction da)
 normaliseBovadaAction (Bov.MkTableAction ta) =
@@ -67,13 +66,3 @@ normaliseDealerAction Bov.PlayerDeal            = PlayerDeal
 normaliseDealerAction (Bov.FlopDeal ca ca' ca2) = FlopDeal ca ca' ca2
 normaliseDealerAction (Bov.TurnDeal  ca       ) = TurnDeal ca
 normaliseDealerAction (Bov.RiverDeal ca       ) = RiverDeal ca
-
-normaliseBetAction :: Bov.BetAction b -> BetAction b
-normaliseBetAction (Bov.Call am          ) = Call am
-normaliseBetAction (Bov.Raise      am am') = Raise am am'
-normaliseBetAction (Bov.AllInRaise am am') = AllInRaise am am'
-normaliseBetAction (Bov.Bet   am         ) = Bet am
-normaliseBetAction (Bov.AllIn am         ) = AllIn am
-normaliseBetAction Bov.Fold                = Fold
-normaliseBetAction Bov.Check               = Check
-

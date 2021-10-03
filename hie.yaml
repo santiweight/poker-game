@@ -1,6 +1,0 @@
-cradle:
-  cabal:
-    - path: "./src"
-      component: lib:poker-game
-    - path: "./test"
-      component: poker-game:test:all-tests

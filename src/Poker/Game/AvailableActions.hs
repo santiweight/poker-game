@@ -1,5 +1,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE CPP #-}
+
 module Poker.Game.AvailableActions where
 --     notEnoughChipsErr = Left $ InvalidMove name NotEnoughChipsForAction
 --     activePlayersCount = length $ getActivePlayers _players
@@ -104,9 +106,14 @@ import           Poker
 -- -- Therefore the acting in turn rule wont apply for that first move
 -- -- when (< 2 players state set to sat in)
 import           Poker.Game.Types
-import           Poker.History.Types
-import           Prettyprinter
-import           Prettyprinter.Render.String    ( renderString )
+import           Poker.History.Bovada.Model
+#if MIN_VERSION_prettyprinter(1,7,0)
+import Prettyprinter
+import Prettyprinter.Render.String
+#else
+import           Data.Text.Prettyprint.Doc
+import           Data.Text.Prettyprint.Doc.Render.String    ( renderString )
+#endif
 
 data Ranged a = Exactly a | Between a a
 
@@ -172,8 +179,8 @@ getStreetAvailableActions activePlayer st@GameState { _activeBet, _potSize, _sta
               .  to fromJust
               .  stack
               .  to _unStack
-          betA = if activePlayerStack > getStake _stateStakes
-            then ABet (getStake _stateStakes) activePlayerStack
+          betA = if activePlayerStack > unStake _stateStakes
+            then ABet (unStake _stateStakes) activePlayerStack
             else AAllIn activePlayerStack
       in  Right (activePlayer, [AFold, ACheck, betA])
     Just activeBet@(ActionFaced betTy amount raiseSize) -> do
