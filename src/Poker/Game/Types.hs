@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -5,7 +6,6 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE CPP #-}
 
 module Poker.Game.Types where
 
@@ -148,13 +148,13 @@ data BetType
   | TenBet
   | ElevenBet
   | TwelveBet
-  | ThirtBet
-  | FourtB
-  | FiftBet
-  | SixtBet
-  | SeventBet
-  | EighttB
-  | NinetBet
+  | ThirteenBet
+  | FourteenBet
+  | FifteenBet
+  | SixteenBet
+  | SeventeenBet
+  | EighteenBet
+  | NineteenBet
   deriving (Show, Read, Ord, Eq, Enum)
 
 data GameError g

@@ -327,17 +327,12 @@ maybeToErrorBundle a e mb = case mb of
   Just a -> return a
   Nothing -> throwBundleError a e
 
-{- Testing and Printing methods -}
-
 execIsGame :: StateT s (Except e) a -> s -> Either e s
 execIsGame m = runExcept . execStateT m
 
 evalIsGame :: StateT s (ExceptT e Identity) a -> s -> Either e a
 evalIsGame m = runIdentity . runExceptT . evalStateT m
 
--- testIsGame
---   :: MonadIO m  =>
---      StateT GameState (ExceptT e m) a -> GameState -> m (Either e String)
 testIsGame ::
   Show b =>
   StateT (GameState b) (ExceptT (GameErrorBundle b) IO) a ->
@@ -351,9 +346,6 @@ testIsGame actionM inputState = do
     -- prettyPrint e
     Right (_, state') -> do
       putStrLn "*** Game completed without error ***"
-
--- prettyPrint state'
--- putStr $ view stateHandText state'
 
 prettyString :: Pretty a => a -> String
 prettyString = renderString . layoutPretty defaultLayoutOptions . pretty

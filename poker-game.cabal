@@ -23,16 +23,13 @@ library
     Poker.Game.AvailableActions
     Poker.Game.Types
     Poker.Game.Normalise
-
-  -- other-modules:
-  -- other-extensions:
   build-depends:
     base
     , containers
     , lens
     , mtl
     , poker
-    , history-bovada
+    , poker-histories
     , prettyprinter
     , text
   hs-source-dirs: src
@@ -66,7 +63,6 @@ test-suite all-tests
   main-is: Driver.hs
   other-modules:
       Test.Poker.Game.Emulate
-      Test.Poker.Game.Maison
       Paths_poker_game
   hs-source-dirs:
       test
@@ -84,7 +80,7 @@ test-suite all-tests
     , mtl
     , base
     , poker
-    , history-bovada
+    , poker-histories
     , poker-game
     , pretty-show
     , prettyprinter
