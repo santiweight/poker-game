@@ -88,7 +88,7 @@ outputAvailableActions = do
   doesDirExist <- doesDirectoryExist outputDir
   when doesDirExist $ removeDirectoryRecursive outputDir
   createDirectory outputDir
-  fileResults <- Map.toList <$> allHands
+  fileResults <- Map.toList <$> Test.Poker.Game.Emulate.allHands
   forM_ fileResults $ \(fp, hands) -> do
     let fpOutputDir = outputDir </> last (splitOn "/" fp)
     createDirectory fpOutputDir

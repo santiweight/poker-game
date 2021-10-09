@@ -28,7 +28,7 @@ library
     , containers
     , lens
     , mtl
-    , poker
+    , poker-base
     , poker-histories
     , prettyprinter
     , text
@@ -79,7 +79,7 @@ test-suite all-tests
     , lens
     , mtl
     , base
-    , poker
+    , poker-base
     , poker-histories
     , poker-game
     , pretty-show
