@@ -70,7 +70,7 @@ deriving instance Num BigBlinds
 
 data Player t = Player
   { _playerHolding :: !Hand,
-    _stack :: !(Stack t) -- TODO use newtype
+    _stack :: !(Stack t)
   }
   deriving (Show, Eq, Ord, Generic, Functor)
 
