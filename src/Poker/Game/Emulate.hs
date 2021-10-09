@@ -196,7 +196,6 @@ emulateAction a = do
               (newFacedAmount `minus` amountFaced)
           activeBet ?= ActionFaced pos newFacedAmount raiseAmount
     handlePostAction :: (IsGame m b) => PostAction b -> m ()
-    -- handlePostAction = _
     handlePostAction (PostAction pos val) = case val of
       Post postSize -> doPost pos postSize
       PostDead postSize -> do
@@ -228,19 +227,6 @@ execIsGame m = runExcept . execStateT m
 
 evalIsGame :: StateT s (ExceptT e Identity) a -> s -> Either e a
 evalIsGame m = runIdentity . runExceptT . evalStateT m
-
-testIsGame ::
-  Show b =>
-  StateT (GameState b) (ExceptT (GameErrorBundle b) IO) a ->
-  GameState b ->
-  IO ()
-testIsGame actionM inputState = do
-  res <- runExceptT (runStateT actionM inputState)
-  case res of
-    Left e -> do
-      putStrLn "Game Failed"
-    Right (_, state') -> do
-      putStrLn "*** Game completed without error ***"
 
 prettyString :: Pretty a => a -> String
 prettyString = renderString . layoutPretty defaultLayoutOptions . pretty

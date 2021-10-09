@@ -165,24 +165,6 @@ data GameError g
 instance Pretty g => Pretty (GameError g) where
   pretty = viaShow . fmap pretty
 
-data GameErrorBundle g = GameErrorBundle
-  { _bundleError :: GameError g,
-    _bundleState :: GameState g,
-    _bundleCausingAction :: Maybe (Action g)
-  }
-
-instance Pretty g => Pretty (GameErrorBundle g) where
-  pretty (GameErrorBundle ge gs ac) =
-    hang 4 $
-      vsep
-        ["GameErrorBundle:", pretty ge, pretty gs, viaShow . (fmap . fmap) pretty $ ac]
-
-deriving instance Show a => Show (GameErrorBundle a)
-
-deriving instance Eq a => Eq (GameErrorBundle a)
-
-deriving instance Functor GameErrorBundle
-
 data EvalState t = EvalState
   { _nextActions :: [Action t],
     _accRanges :: Map String (ActionRange t),
@@ -199,5 +181,4 @@ makeLenses ''ActionFaced
 makePrisms ''GameError
 makePrisms ''Board
 makePrisms ''DealerAction
-makeLenses ''GameErrorBundle
 makeLenses ''GameState

@@ -79,14 +79,11 @@ incPot bet = potSize . mapped %= add bet
 getPlayer :: MonadReader (GameState b) m => Position -> m (Maybe (Stack b))
 getPlayer pos_ = ask <&> view (posToStack . at pos_)
 
--- Increase stack size at a seat position
 incStack :: (IsGame m b) => Position -> b -> Action b -> m ()
 incStack pos amount a = do
   _ <- getStack a pos
-  -- mErrorAssert (playerStack - amount > 0) (NegativePlayerStack badAct)
   atPlayerStack pos %= add amount
 
--- Decrease stack size at a seat position
 decStack ::
   (IsGame m b, MonadState (GameState t) m) =>
   Position ->
