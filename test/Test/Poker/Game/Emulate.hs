@@ -116,7 +116,7 @@ data Case b = Case
 
 getCases ::
   Bov.History (Amount "USD") ->
-  Either (GameErrorBundle (Amount "USD")) [Case (Amount "USD")]
+  Either (GameError (Amount "USD")) [Case (Amount "USD")]
 getCases hand' =
   let (preflop, postflop) =
         break (is (_MkDealerAction . only PlayerDeal))
@@ -146,7 +146,7 @@ getCases hand' =
         Show b,
         Ord b,
         MonadWriter [Case b] m,
-        MonadError (GameErrorBundle b) m
+        MonadError (GameError b) m
       ) =>
       Action b ->
       Case b ->
@@ -196,7 +196,7 @@ outputHand ::
   FilePath ->
   FilePath ->
   Int ->
-  Either (GameErrorBundle (Amount "USD")) [Case b] ->
+  Either (GameError (Amount "USD")) [Case b] ->
   IO ()
 outputHand _hand originalFile handOutputDir handId cases = do
   -- let outFile = outputDir </> "out"

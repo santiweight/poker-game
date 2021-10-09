@@ -60,6 +60,7 @@ import Poker.Game.Types
 #if MIN_VERSION_prettyprinter(1,7,0)
 import Prettyprinter
 import Prettyprinter.Render.String
+import Poker.Game.Utils
 #else
 import           Data.Text.Prettyprint.Doc ( Pretty(pretty)
                                                 , defaultLayoutOptions
@@ -68,68 +69,13 @@ import           Data.Text.Prettyprint.Doc ( Pretty(pretty)
 import           Data.Text.Prettyprint.Doc.Render.String
 #endif
 
-type IsGame m b =
-  ( IsBet b,
-    Pretty b,
-    Show b,
-    Ord b,
-    MonadState (GameState b) m,
-    MonadError (GameErrorBundle b) m
-  )
-
-incPot :: (IsBet b, MonadState (GameState b) m) => b -> m ()
-incPot bet = potSize . mapped %= add bet
-
-getPlayer :: MonadReader (GameState b) m => Position -> m (Maybe (Player b))
-getPlayer pos_ = ask <&> view (posToPlayer . at pos_)
-
--- Reduce state pot size
-decPot :: (IsGame m b) => Action b -> b -> m (Pot b)
-decPot a amount = do
-  newPotSizeMay <- use potSize <&> dec amount
-  maybeToErrorBundle a NegativePotSize newPotSizeMay
-  where
-    dec :: IsBet b => b -> Pot b -> Maybe (Pot b)
-    dec betSize (Pot potSize_) = Pot <$> potSize_ `minus` betSize
-
--- Increase stack size at a seat position
-incStack :: (IsGame m b) => Position -> b -> Action b -> m ()
-incStack pos amount a = do
-  _ <- getStack a pos
-  -- mErrorAssert (playerStack - amount > 0) (NegativePlayerStack badAct)
-  atPlayerStack pos %= add amount
-
--- Decrease stack size at a seat position
-decStack ::
-  (IsGame m b, MonadState (GameState t) m) =>
-  Position ->
-  b ->
-  Action b ->
-  m ()
-decStack pos amount badAct = do
-  playerStack <- getStack badAct pos
-  newPlayerStack <-
-    maybeToErrorBundle
-      badAct
-      (NegativePlayerStack badAct)
-      (playerStack `minus` amount)
-  atPlayerStack pos .= newPlayerStack
-
-atPlayerStack :: Position -> Traversal' (GameState t) t
-atPlayerStack pos =
-  posToPlayer . ix pos . stack . lens _unStack (\_ s -> Stack s)
-
-getStack :: IsGame m b => Action b -> Position -> m b
-getStack a pos =
-  maybeToErrorBundle a PlayerNotFound =<< preuse (atPlayerStack pos)
-
 -- Not a big deal but this implementation of the player queue
 -- means that every rotation takes 6 steps since snoc is O(n)
 -- Ensures that the position removed from queue is the one in the queue currently
 rotateNextActor :: IsGame m b => Action b -> Position -> m ()
 rotateNextActor a pos = do
   (toAct, rest) <-
-    maybeToErrorBundle a NoPlayersInQueue . uncons =<< use toActQueue
+    maybeToError NoPlayersInQueue . uncons =<< use toActQueue
   mErrorAssert a (pos == toAct) $ WrongPlayerActed toAct pos
   toActQueue .= rest ++ [toAct]
 
@@ -138,7 +84,7 @@ rotateNextActor a pos = do
 removeNextActor :: IsGame m b => Action b -> Position -> m ()
 removeNextActor a pos = do
   (toAct, rest) <-
-    maybeToErrorBundle a NoPlayersInQueue . uncons =<< use toActQueue
+    maybeToError NoPlayersInQueue . uncons =<< use toActQueue
   mErrorAssert a (pos == toAct) $ WrongPlayerActed toAct pos
   toActQueue .= rest
 
@@ -152,7 +98,7 @@ addDealToState :: IsGame m b => Action b -> DealerAction -> m ()
 addDealToState a deal = do
   board <- use street
   case addDealToBoard deal board of
-    Nothing -> throwBundleError a $ IncorrectDeal deal board
+    Nothing -> throwError $ IncorrectDeal deal board
     Just board' -> street .= board'
   where
     -- Take a deal data type and return a board
@@ -175,7 +121,7 @@ emulateAction a = do
       availActions <- get <&> availableActions
 
       use street >>= \case
-        InitialTable -> throwBundleError a (PlayerActedPreDeal a)
+        InitialTable -> throwError (PlayerActedPreDeal a)
         _ -> pure ()
       betSize <-
         flip (getBetSize pos) actVal
@@ -188,15 +134,14 @@ emulateAction a = do
       -- It would be good to silence error on each side (available/emulate)
       -- and then ensure that the same errors are covered by each.
       availActions & \case
-        Left txt -> throwBundleError a . CustomError . T.unpack $ txt
+        Left txt -> throwError . CustomError . T.unpack $ txt
         Right (pos, availableActions) ->
           unless (any (actionMatches actVal) availableActions) $
-            throwBundleError a
+            throwError
               . CustomError
               $ "Action "
                 <> show (prettyString <$> a)
                 <> "is not available"
-
       doRotateNextActor pos actVal
     MkDealerAction deal -> do
       addDealToState a deal
@@ -275,8 +220,7 @@ emulateAction a = do
         Nothing -> activeBet ?= ActionFaced pos newFacedAmount newFacedAmount
         Just (ActionFaced _ amountFaced _) -> do
           raiseAmount <-
-            maybeToErrorBundle
-              a
+            maybeToError
               NewActionFacedLessThanPrevious
               (newFacedAmount `minus` amountFaced)
           activeBet ?= ActionFaced pos newFacedAmount raiseAmount
@@ -309,15 +253,7 @@ emulateAction a = do
           decStack pos postSize a
 
 mErrorAssert :: IsGame m b => Action b -> Bool -> GameError b -> m ()
-mErrorAssert a b e = if b then return () else throwBundleError a e
-
-throwBundleError :: IsGame m b => Action b -> GameError b -> m a
-throwBundleError a e = throwError . (\st -> GameErrorBundle e st $ Just a) =<< get
-
-maybeToErrorBundle :: IsGame m b => Action b -> GameError b -> Maybe a -> m a
-maybeToErrorBundle a e mb = case mb of
-  Just a -> return a
-  Nothing -> throwBundleError a e
+mErrorAssert a b e = if b then return () else throwError e
 
 execIsGame :: StateT s (Except e) a -> s -> Either e s
 execIsGame m = runExcept . execStateT m
