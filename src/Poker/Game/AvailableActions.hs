@@ -23,6 +23,7 @@ import Poker.History.Bovada.Model
 #if MIN_VERSION_prettyprinter(1,7,0)
 import Prettyprinter
 import Prettyprinter.Render.String
+import Control.Monad (filterM, mfilter)
 #else
 import           Data.Text.Prettyprint.Doc
 import           Data.Text.Prettyprint.Doc.Render.String    ( renderString )
@@ -68,7 +69,9 @@ availableActions st@GameState {_potSize, _street, _stateStakes, _toActQueue, _po
     --  | length _toActQueue < 2
     --  = Left "No actors left"
     (activePlayer : _) <- _toActQueue,
-    Just activePlayer == (_position <$> _activeBet) =
+    Just activePlayer == (_position <$> _activeBet),
+    -- Not quite correct - ensure that we are not postflop
+    not (activePlayer == BB && Just (unStake _stateStakes) == (_amountFaced <$> _activeBet))  =
     Right (activePlayer, [])
   | otherwise =
     let activePlayer = head _toActQueue
@@ -135,7 +138,7 @@ getStreetAvailableActions activePlayer st@GameState {_activeBet, _potSize, _stat
               AAllIn
                 activePlayerStack
             | streetInv == amount && isNothing _activeBet = ACheck
-            | otherwise = maybe ACheck ACall (amount `minus` streetInv)
+            | otherwise = maybe ACheck ACall $ mfilter (/= mempty) (amount `minus` streetInv)
       pure (activePlayer, callA : foldA : raiseAs)
   where
     prettyString :: Pretty a => a -> String

@@ -57,34 +57,17 @@ import Poker.Game.AvailableActions
   )
 import Poker.Game.Types
 
-#if MIN_VERSION_prettyprinter(1,7,0)
+
 import Prettyprinter
 import Prettyprinter.Render.String
 import Poker.Game.Utils
-#else
-import           Data.Text.Prettyprint.Doc ( Pretty(pretty)
-                                                , defaultLayoutOptions
-                                                , layoutPretty
-                                                )
-import           Data.Text.Prettyprint.Doc.Render.String
-#endif
 
-emulateDeal :: IsGame m b => Action b -> DealerAction -> m ()
-emulateDeal a deal = do
-  board <- use street
-  case addDealToBoard deal board of
-    Nothing -> throwError $ IncorrectDeal deal board
-    Just board' -> street .= board'
-  where
-    addDealToBoard :: DealerAction -> Board -> Maybe Board
-    addDealToBoard PlayerDeal board@InitialTable = Just $ PreFlopBoard board
-    addDealToBoard (FlopDeal c1 c2 c3) board@(PreFlopBoard _) =
-      Just $ FlopBoard (c1, c2, c3) board
-    addDealToBoard (TurnDeal card) board@(FlopBoard _ _) =
-      Just $ TurnBoard card board
-    addDealToBoard (RiverDeal card) board@(TurnBoard _ _) =
-      Just $ RiverBoard card board
-    addDealToBoard _ _ = Nothing
+
+
+
+
+
+
 
 -- Monadic action to execute an Action datatype on the given state
 emulateAction :: forall m b. (IsGame m b) => Action b -> m ()
@@ -113,15 +96,15 @@ emulateAction a = do
               . CustomError
               $ "Action "
                 <> show (prettyString <$> a)
-                <> "is not available"
+                <> "is not available\nAvailable Actions are: " <> show (pos, availableActions)
       doRotateNextActor pos actVal
     MkDealerAction deal -> do
       emulateDeal a deal
-      activeBet .= Nothing
       use street >>= \case
         InitialTable -> toActQueue %= sortPreflop
         PreFlopBoard _ -> toActQueue %= sortPreflop
         _ -> do
+          activeBet .= Nothing
           streetInvestments . each .= mempty
           toActQueue %= sortPostflop
     MkPostAction act -> handlePostAction act
@@ -201,14 +184,8 @@ emulateAction a = do
       PostDead postSize -> do
         incPot postSize
         decStack pos postSize a
-        Stake stakes <- use stateStakes
-        mErrorAssert (postSize >= stakes)
-          . CustomError
-          $ "expected postSize to be at least stakes value, "
-            <> show stakes
-            <> ", but found "
-            <> show postSize
-        streetInvestments . at pos ?= stakes
+        stateStakes' <- use stateStakes
+        streetInvestments . at pos . non mempty %= add (minimum [postSize, unStake stateStakes'])
       where
         doPost :: (IsGame m b) => Position -> b -> m ()
         doPost pos postSize = do
@@ -230,3 +207,21 @@ evalIsGame m = runIdentity . runExceptT . evalStateT m
 
 prettyString :: Pretty a => a -> String
 prettyString = renderString . layoutPretty defaultLayoutOptions . pretty
+
+emulateDeal :: IsGame m b => Action b -> DealerAction -> m ()
+emulateDeal a deal = do
+  board <- use street
+  case addDealToBoard deal board of
+    Nothing -> throwError $ IncorrectDeal deal board
+    Just board' -> street .= board'
+  where
+    addDealToBoard :: DealerAction -> Board -> Maybe Board
+    addDealToBoard PlayerDeal board@InitialTable = Just $ PreFlopBoard board
+    addDealToBoard (FlopDeal c1 c2 c3) board@(PreFlopBoard _) =
+      Just $ FlopBoard (c1, c2, c3) board
+    addDealToBoard (TurnDeal card) board@(FlopBoard _ _) =
+      Just $ TurnBoard card board
+    addDealToBoard (RiverDeal card) board@(TurnBoard _ _) =
+      Just $ RiverBoard card board
+    addDealToBoard _ _ = Nothing
+

@@ -1,6 +1,6 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE TupleSections #-}
-{-# LANGUAGE CPP #-}
 
 module Test.Poker.Game.Emulate where
 
@@ -10,11 +10,13 @@ import Control.Monad.Except
   ( Except,
     MonadError,
     liftEither,
+    mapExceptT,
     runExcept,
+    withExceptT,
   )
 import Control.Monad.State.Strict
 import Control.Monad.Writer
-import Data.Either.Extra (eitherToMaybe)
+import Data.Either.Extra (eitherToMaybe, mapLeft)
 import Data.List.Extra (splitOn)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
@@ -26,13 +28,8 @@ import Data.Maybe
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
-
-import Prettyprinter
-
-
-
-
 import Data.Void (Void)
+import GHC.Stack (HasCallStack)
 import Money
   ( Approximation (Floor),
     dense',
@@ -48,11 +45,12 @@ import Poker.Game.Emulate
 import Poker.Game.Types
 import qualified Poker.History.Bovada.Model as Bov
 import qualified Poker.History.Bovada.Parser as Bov
+import Poker.History.Types
+import Prettyprinter
 import System.Directory
 import System.FilePath
 import Text.Megaparsec
-import Text.Show.Pretty (ppShow)
-import Poker.History.Types
+import Text.Show.Pretty (pPrint, ppShow)
 
 testDir :: IO FilePath
 testDir = getCurrentDirectory <&> (</> "test")
@@ -82,24 +80,19 @@ allHands = do
 
 makePrisms ''Action
 
+unit_output :: IO ()
+unit_output = outputAvailableActions
+
 outputAvailableActions :: IO ()
 outputAvailableActions = do
-  outputDir <- testDir <&> (</> "output")
-  doesDirExist <- doesDirectoryExist outputDir
-  when doesDirExist $ removeDirectoryRecursive outputDir
-  createDirectory outputDir
   fileResults <- Map.toList <$> Test.Poker.Game.Emulate.allHands
+  print $ "Testing " <> show (sum $ length . snd <$> fileResults) <> " hands"
   forM_ fileResults $ \(fp, hands) -> do
-    let fpOutputDir = outputDir </> last (splitOn "/" fp)
-    createDirectory fpOutputDir
-    forM_ (zip [1 :: Int ..] hands) $ \(i, hand) -> do
-      let handOutputDir = fpOutputDir </> show i
-      createDirectory handOutputDir
+    forM_ hands $ \hand -> do
       let hand' = fmap toUsdHand hand
       outputHand
         hand'
         fp
-        handOutputDir
         (Bov.gameId . Bov.header $ hand')
         (getCases hand')
   where
@@ -114,17 +107,22 @@ data Case b = Case
     _gameState :: GameState b
   }
 
+-- Convert a History into a list of Case, where a Case is generated:
+--
 getCases ::
   Bov.History (Amount "USD") ->
-  Either (GameError (Amount "USD")) [Case (Amount "USD")]
+  Either (GameErrorWithCtx (Amount "USD")) [Case (Amount "USD")]
 getCases hand' =
-  let (preflop, postflop) =
-        break (is (_MkDealerAction . only PlayerDeal))
-          . mapMaybe normaliseBovadaAction
-          $ Bov._handActions hand'
+  let normalisedActs =
+        mapMaybe normaliseBovadaAction $
+          Bov._handActions hand'
+      (preflopActs, postflopActs) =
+        break
+          (is (_MkDealerAction . only PlayerDeal))
+          normalisedActs
       (preflop', postflop') =
-        ( preflop `snoc` head postflop,
-          filter (isn't _MkPostAction) $ tail postflop
+        ( preflopActs `snoc` head postflopActs,
+          filter (isn't _MkPostAction) $ tail postflopActs
         )
       initState = bovadaHistoryToGameState hand'
       st :: GameState (Amount "USD") =
@@ -143,17 +141,15 @@ getCases hand' =
     go ::
       ( IsBet b,
         Pretty b,
-        Show b,
-        Ord b,
         MonadWriter [Case b] m,
-        MonadError (GameError b) m
+        MonadError (GameErrorWithCtx b) m
       ) =>
       Action b ->
       Case b ->
       m (Case b)
     -- TODO needs some fenceposting
     go ac (Case as nextA gs) = do
-      gs' <- liftEither $ flip runGame gs $ emulateAction nextA
+      gs' <- liftEither . mapLeft (case nextA of MkPlayerAction a -> GameErrorWithCtx gs a) $ flip runGame gs $ emulateAction nextA
       tell [Case (as `snoc` nextA) ac gs']
       pure $ Case (as `snoc` nextA) ac gs'
 
@@ -170,7 +166,7 @@ getTestActs ACheck = [Check]
 getTestActs (ABet b b') = [Bet b, Bet b']
 
 -- TODO choose some number in the middle too
-getBadTestActs :: (IsBet b) => AvailableAction b -> [BetAction b]
+getBadTestActs :: (HasCallStack, IsBet b) => AvailableAction b -> [BetAction b]
 getBadTestActs (ACall b) =
   [Call . fromJust $ b `minus` smallestAmount, Call $ b `add` smallestAmount]
 getBadTestActs (ARaiseBetween b b') =
@@ -194,19 +190,19 @@ outputHand ::
   (Show b, Ord b, IsBet b, Pretty b) =>
   Bov.History (Amount "USD") ->
   FilePath ->
-  FilePath ->
+  -- FilePath ->
   Int ->
-  Either (GameError (Amount "USD")) [Case b] ->
+  Either (GameErrorWithCtx (Amount "USD")) [Case b] ->
   IO ()
-outputHand _hand originalFile handOutputDir handId cases = do
-  -- let outFile = outputDir </> "out"
-  case cases of
-    Left geb -> print "found error" >> putStrLn (prettyString geb)
-    Right x0 ->
+outputHand _hand originalFile handId casesOrErr = do
+  case casesOrErr of
+    Left geb -> do
+      print $ "Found error while evaluating hand #" <> show handId <> " in " <> originalFile
+      pPrint geb
+    Right cases ->
       forM_
-        (zip [1 :: Int ..] x0)
-        ( \(i, Case acs nextA gs) -> do
-            let _caseOutputFile = handOutputDir </> show i
+        cases
+        ( \(Case acs nextA gs) -> do
             let availableActionsRes = availableActions gs
             case (nextA ^? _MkPlayerAction, availableActionsRes) of
               (Just (PlayerAction playerPos ba), Right (pos', as)) -> do
@@ -225,12 +221,14 @@ outputHand _hand originalFile handOutputDir handId cases = do
                 let testActs = getTestActs =<< as
                 forM_ testActs $ \testAct -> do
                   let res =
-                        runGame
-                          (emulateAction (MkPlayerAction (PlayerAction playerPos testAct)))
-                          gs
+                        mapLeft (GameErrorWithCtx gs (PlayerAction playerPos testAct)) $
+                          runGame
+                            (emulateAction (MkPlayerAction (PlayerAction playerPos testAct)))
+                            gs
                   case res of
                     Left geb ->
-                      print "Available actions are wrong" >> print (pretty geb)
+                      print "Available actions are wrong"
+                        >> pPrint geb
                     Right _ -> pure ()
                   pure ()
                 let badTestActs = getBadTestActs =<< as
@@ -270,14 +268,19 @@ outputHand _hand originalFile handOutputDir handId cases = do
             pure ()
         )
 
+data GameErrorWithCtx b
+  = GameErrorWithCtx {state :: GameState b, offendingAct :: PlayerAction b, err :: GameError b}
+  | Wtf
+  deriving (Show)
+
 concatM :: (Monad m) => [a -> m a] -> (a -> m a)
 concatM = foldr (>=>) pure
 
 runGame :: StateT s (Except e) a -> s -> Either e s
 runGame m = runExcept . execStateT m
 
-unit_output :: IO ()
-unit_output = outputAvailableActions
+-- unit_output :: IO ()
+-- unit_output = outputAvailableActions
 
 bovadaHistoryToGameState :: IsBet b => Bov.History b -> GameState b
 bovadaHistoryToGameState Bov.History {Bov._handStakes, Bov._handPlayerMap, Bov._handSeatMap, Bov._handActions, Bov._handText} =
@@ -288,7 +291,13 @@ bovadaHistoryToGameState Bov.History {Bov._handStakes, Bov._handPlayerMap, Bov._
       _toActQueue = Map.keys posToPlayer',
       _posToStack = posToPlayer',
       _streetInvestments = Map.empty,
-      _activeBet = Nothing
+      _activeBet =
+        Just $
+          ActionFaced
+            { _position = BB,
+              _amountFaced = unStake _handStakes,
+              _raiseSize = unStake _handStakes
+            }
     }
   where
     posToPlayer' = Map.mapMaybe normalizePlayer _wE
