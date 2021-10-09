@@ -113,3 +113,31 @@ maybeToError :: IsGame m b => GameError b -> Maybe a -> m a
 maybeToError e mb = case mb of
   Just a -> return a
   Nothing -> throwError e
+
+-- Not a big deal but this implementation of the player queue
+-- means that every rotation takes 6 steps since snoc is O(n)
+-- Ensures that the position removed from queue is the one in the queue currently
+rotateNextActor :: IsGame m b => Action b -> Position -> m ()
+rotateNextActor a pos = do
+  (toAct, rest) <-
+    maybeToError NoPlayersInQueue . uncons =<< use toActQueue
+  mErrorAssert (pos == toAct) $ WrongPlayerActed toAct pos
+  toActQueue .= rest ++ [toAct]
+
+-- Ensures that the next actor is the one acting
+-- Removes the next actor instead of put it at the back of the queue
+removeNextActor :: IsGame m b => Action b -> Position -> m ()
+removeNextActor a pos = do
+  (toAct, rest) <-
+    maybeToError NoPlayersInQueue . uncons =<< use toActQueue
+  mErrorAssert (pos == toAct) $ WrongPlayerActed toAct pos
+  toActQueue .= rest
+
+numActivePlayers :: IsGame m b => m Int
+numActivePlayers = length <$> use toActQueue
+
+mErrorAssert :: IsGame m b => Bool -> GameError b -> m ()
+mErrorAssert b e = if b then return () else throwError e
+
+assertM :: IsGame m b => Bool -> GameError b -> m ()
+assertM b e = if b then return () else throwError e

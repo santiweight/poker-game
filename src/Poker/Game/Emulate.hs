@@ -69,28 +69,6 @@ import           Data.Text.Prettyprint.Doc ( Pretty(pretty)
 import           Data.Text.Prettyprint.Doc.Render.String
 #endif
 
--- Not a big deal but this implementation of the player queue
--- means that every rotation takes 6 steps since snoc is O(n)
--- Ensures that the position removed from queue is the one in the queue currently
-rotateNextActor :: IsGame m b => Action b -> Position -> m ()
-rotateNextActor a pos = do
-  (toAct, rest) <-
-    maybeToError NoPlayersInQueue . uncons =<< use toActQueue
-  mErrorAssert a (pos == toAct) $ WrongPlayerActed toAct pos
-  toActQueue .= rest ++ [toAct]
-
--- Ensures that the next actor is the one acting
--- Removes the next actor instead of put it at the back of the queue
-removeNextActor :: IsGame m b => Action b -> Position -> m ()
-removeNextActor a pos = do
-  (toAct, rest) <-
-    maybeToError NoPlayersInQueue . uncons =<< use toActQueue
-  mErrorAssert a (pos == toAct) $ WrongPlayerActed toAct pos
-  toActQueue .= rest
-
-numActivePlayers :: IsGame m b => m Int
-numActivePlayers = length <$> use toActQueue
-
 {- IsGame Actions -}
 
 -- Monadic action to alter state board with a deal action
@@ -172,7 +150,7 @@ emulateAction a = do
           <$> preuse (activeBet . _Just . amountFaced)
       case act of
         Call amount -> do
-          mErrorAssert a (amount `add` previousInvestment == activeBetSize) $
+          mErrorAssert (amount `add` previousInvestment == activeBetSize) $
             CallWrongAmount activeBetSize a
           pure amount -- - previousInvestment
         Raise amountBy _ -> pure amountBy
@@ -180,7 +158,7 @@ emulateAction a = do
         Bet amount -> pure amount
         AllIn amount -> do
           playerStack <- getStack a pos
-          mErrorAssert a (amount == playerStack) (AllInNotFullStack playerStack a)
+          mErrorAssert (amount == playerStack) (AllInNotFullStack playerStack a)
           pure amount
         Fold -> pure mempty
         Check -> pure mempty
@@ -232,7 +210,7 @@ emulateAction a = do
         incPot postSize
         decStack pos postSize a
         Stake stakes <- use stateStakes
-        mErrorAssert a (postSize >= stakes)
+        mErrorAssert (postSize >= stakes)
           . CustomError
           $ "expected postSize to be at least stakes value, "
             <> show stakes
@@ -251,9 +229,6 @@ emulateAction a = do
             Just _ -> pure ()
             Nothing -> activeBet ?= ActionFaced pos postSize postSize
           decStack pos postSize a
-
-mErrorAssert :: IsGame m b => Action b -> Bool -> GameError b -> m ()
-mErrorAssert a b e = if b then return () else throwError e
 
 execIsGame :: StateT s (Except e) a -> s -> Either e s
 execIsGame m = runExcept . execStateT m

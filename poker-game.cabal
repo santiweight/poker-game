@@ -23,6 +23,7 @@ library
     Poker.Game.AvailableActions
     Poker.Game.Types
     Poker.Game.Normalise
+    Poker.Game.Utils
   build-depends:
     base
     , containers
