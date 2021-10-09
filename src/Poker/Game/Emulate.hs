@@ -61,7 +61,6 @@ import Poker.Game.Types
 import Prettyprinter
 import Prettyprinter.Render.String
 import Poker.Game.Utils
-import Poker.Utils (prettyText)
 #else
 import           Data.Text.Prettyprint.Doc ( Pretty(pretty)
                                                 , defaultLayoutOptions
@@ -113,7 +112,7 @@ emulateAction a = do
             throwError
               . CustomError
               $ "Action "
-                <> show (prettyText <$> a)
+                <> show (prettyString <$> a)
                 <> "is not available"
       doRotateNextActor pos actVal
     MkDealerAction deal -> do
@@ -243,3 +242,6 @@ testIsGame actionM inputState = do
     -- prettyPrint e
     Right (_, state') -> do
       putStrLn "*** Game completed without error ***"
+
+prettyString :: Pretty a => a -> String
+prettyString = renderString . layoutPretty defaultLayoutOptions . pretty
