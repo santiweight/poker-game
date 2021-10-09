@@ -103,8 +103,7 @@ outputAvailableActions = do
     toUsdHand _ = error "Unexpected non-USD hand"
 
 data Case b = Case
-  { _previousActs :: [Action b],
-    _nextAct :: Action b,
+  { _nextAct :: Action b,
     _gameState :: GameState b
   }
 
@@ -114,31 +113,32 @@ getCases ::
   Bov.History (Amount "USD") ->
   Either (GameErrorWithCtx (Amount "USD")) [Case (Amount "USD")]
 getCases hand' =
-  let (preflopActs, postflopActs) =
-        break
-          (is (_MkDealerAction . only PlayerDeal))
-          normalisedActs
-      (preflop', postflop') =
-        ( preflopActs `snoc` head postflopActs,
-          filter (isn't _MkPostAction) $ tail postflopActs
-        )
-      initState = normalise hand'
-      st :: GameState (Amount "USD") =
-        either (error . ppShow) id . flip runGame initState $
-          mapM_
-            emulateAction
-            preflop'
-   in fmap (Case [] (head postflop') st :) $
+  let firstActCase = Case (head postflopActs) preflopState
+   in fmap (firstActCase :) $
         runExcept
           . fmap snd
           . runWriterT
           . void
-          . ($ Case [] (head postflop') st)
-          $ concatM (go <$> tail postflop')
+          . ($ firstActCase)
+          $ concatM (go <$> tail postflopActs)
   where
+    preflopState :: GameState (Amount "USD") =
+      either (error . ppShow) id . flip runGame initState $
+        mapM_
+          emulateAction
+          postActs
+    initState = normalise hand'
     normalisedActs =
       mapMaybe normalise $
         Bov._handActions hand'
+    (postActs, postflopActs) =
+      let (preflopActs', postflopActs') =
+            break
+              (is (_MkDealerAction . only PlayerDeal))
+              normalisedActs
+       in ( preflopActs' `snoc` head postflopActs',
+            filter (isn't _MkPostAction) $ tail postflopActs'
+          )
     go ::
       ( IsBet b,
         Pretty b,
@@ -149,22 +149,22 @@ getCases hand' =
       Case b ->
       m (Case b)
     -- TODO needs some fenceposting
-    go ac (Case as nextA gs) = do
-      gs' <- liftEither . mapLeft (case nextA of MkPlayerAction a -> GameErrorWithCtx gs a) $ flip runGame gs $ emulateAction nextA
-      tell [Case (as `snoc` nextA) ac gs']
-      pure $ Case (as `snoc` nextA) ac gs'
+    go ac (Case nextA gs) = do
+      gs' <- liftEither $ runActWithCtx gs nextA
+      tell [Case  ac gs']
+      pure $ Case  ac gs'
 
 -- TODO choose some number in the middle too
-getTestActs :: IsBet b => AvailableAction b -> [BetAction b]
-getTestActs (ACall b) = [Call b]
+getGoodTestActs :: IsBet b => AvailableAction b -> [BetAction b]
+getGoodTestActs (ACall b) = [Call b]
 -- TODO fix raiseBy
-getTestActs (ARaiseBetween b b') = [Raise mempty b, Raise mempty b']
+getGoodTestActs (ARaiseBetween b b') = [Raise mempty b, Raise mempty b']
 -- TODO fix raiseBy
-getTestActs (ARaiseAllIn b) = [AllInRaise mempty b]
-getTestActs (AAllIn b) = [AllIn b]
-getTestActs AFold = [Fold]
-getTestActs ACheck = [Check]
-getTestActs (ABet b b') = [Bet b, Bet b']
+getGoodTestActs (ARaiseAllIn b) = [AllInRaise mempty b]
+getGoodTestActs (AAllIn b) = [AllIn b]
+getGoodTestActs AFold = [Fold]
+getGoodTestActs ACheck = [Check]
+getGoodTestActs (ABet b b') = [Bet b, Bet b']
 
 -- TODO choose some number in the middle too
 getBadTestActs :: (HasCallStack, IsBet b) => AvailableAction b -> [BetAction b]
@@ -191,7 +191,6 @@ outputHand ::
   (Show b, Ord b, IsBet b, Pretty b) =>
   Bov.History (Amount "USD") ->
   FilePath ->
-  -- FilePath ->
   Int ->
   Either (GameErrorWithCtx (Amount "USD")) [Case b] ->
   IO ()
@@ -203,75 +202,43 @@ outputHand _hand originalFile handId casesOrErr = do
     Right cases ->
       forM_
         cases
-        ( \(Case acs nextA gs) -> do
+        ( \(Case nextA gs) -> do
             let availableActionsRes = availableActions gs
             case (nextA ^? _MkPlayerAction, availableActionsRes) of
-              (Just (PlayerAction playerPos ba), Right (pos', as)) -> do
+              (Just pa@(PlayerAction playerPos ba), Right (pos', as)) -> do
                 unless (playerPos == pos' && any (actionMatches ba) as) $
-                  error
-                    ( ppShow
-                        ( handId,
-                          originalFile,
-                          playerPos,
-                          pos',
-                          prettyString <$> ba,
-                          prettyString <$> as,
-                          prettyString gs
-                        )
-                    )
-                let testActs = getTestActs =<< as
-                forM_ testActs $ \testAct -> do
-                  let res =
-                        mapLeft (GameErrorWithCtx gs (PlayerAction playerPos testAct)) $
-                          runGame
-                            (emulateAction (MkPlayerAction (PlayerAction playerPos testAct)))
-                            gs
+                  error $
+                    "Found error while evaluating hand #" <> show handId <> " in " <> originalFile <> "\n"
+                      <> ppShow (gs, pa)
+                let goodTestActs = getGoodTestActs =<< as
+                -- Test that all good acts are emulated without error
+                forM_ goodTestActs $ \goodTestAct -> do
+                  let res = runPlayerActWithCtx gs (PlayerAction playerPos goodTestAct)
                   case res of
-                    Left geb ->
+                    Left geb -> do
                       print "Available actions are wrong"
-                        >> pPrint geb
+                      pPrint geb
                     Right _ -> pure ()
-                  pure ()
                 let badTestActs = getBadTestActs =<< as
-                let foo =
-                      badTestActs <&> \testAct ->
-                        let res =
-                              runGame
-                                (emulateAction (MkPlayerAction (PlayerAction playerPos testAct)))
-                                gs
-                         in case res of
-                              Left _ -> Nothing
-                              Right _ ->
-                                Just $
-                                  unlines
-                                    [ prettyString gs,
-                                      show playerPos,
-                                      show $ prettyString <$> testAct
-                                    ]
-                case catMaybes foo of
-                  [] -> pure ()
-                  ls ->
-                    print "This action should not have succeeded"
-                      >> (putStrLn `mapM_` ls)
-                pure ()
+                -- Test that all bad acts raise an error when emulated
+                forM_ badTestActs $ \badTestAct ->
+                  case runPlayerActWithCtx gs (PlayerAction playerPos badTestAct) of
+                    Left _ -> pure ()
+                    Right _ -> do
+                      print "An action that should fail succeeded:"
+                      putStrLn $
+                        unlines
+                          [ prettyString gs,
+                            show playerPos,
+                            show $ prettyString <$> badTestAct
+                          ]
               (Just _, Left (T.unpack -> "No actors left")) -> pure ()
-              (Just _, Left err) -> print "unexpected error" >> print err
+              (Just _, Left err) -> error (show err)
+              -- TODO available actions for a finished game results in a Prelude.head exception
               _ -> pure ()
-            let _ =
-                  concatWith
-                    (surround (line <> line))
-                    [ vsep . fmap (viaShow . fmap pretty) $ acs,
-                      pretty gs,
-                      either pretty pretty availableActionsRes
-                    ]
-            -- TODO only write some
-            -- writeFile caseOutputFile . docToString $ doc
-            pure ()
         )
 
-data GameErrorWithCtx b
-  = GameErrorWithCtx {state :: GameState b, offendingAct :: PlayerAction b, err :: GameError b}
-  | Wtf
+data GameErrorWithCtx b = GameErrorWithCtx {state :: GameState b, offendingAct :: Action b, err :: GameError b}
   deriving (Show)
 
 concatM :: (Monad m) => [a -> m a] -> (a -> m a)
@@ -279,3 +246,13 @@ concatM = foldr (>=>) pure
 
 runGame :: StateT s (Except e) a -> s -> Either e s
 runGame m = runExcept . execStateT m
+
+runActWithCtx :: (IsBet b, Pretty b) => GameState b -> Action b -> Either (GameErrorWithCtx b) (GameState b)
+runActWithCtx gs act =
+  mapLeft (GameErrorWithCtx gs act) $
+    runGame
+      (emulateAction act)
+      gs
+
+runPlayerActWithCtx :: (IsBet b, Pretty b) => GameState b -> PlayerAction b -> Either (GameErrorWithCtx b) (GameState b)
+runPlayerActWithCtx gs (MkPlayerAction -> act) = runActWithCtx gs act
