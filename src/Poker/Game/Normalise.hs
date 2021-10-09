@@ -32,8 +32,7 @@ instance IsBet b => Normalise (Bov.History b) (GameState b) where
         _activeBet =
           Just
             ActionFaced
-              { _betType = PostB,
-                _amountFaced = unStake _handStakes,
+              { _amountFaced = unStake _handStakes,
                 _raiseSize = unStake _handStakes
               }
       }

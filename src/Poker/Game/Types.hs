@@ -119,17 +119,15 @@ instance Pretty b => Pretty (GameState b) where
       asTuple = \(a, b) -> "(" <> a <> "," <> b <> ")"
 
 data ActionFaced t = ActionFaced
-  { _betType :: BetType,
-    _amountFaced :: t,
+  { _amountFaced :: t,
     _raiseSize :: t
   }
   deriving (Show, Read, Ord, Eq, Functor)
 
 instance Pretty b => Pretty (ActionFaced b) where
-  pretty ActionFaced {_betType, _amountFaced, _raiseSize} =
+  pretty ActionFaced {_amountFaced, _raiseSize} =
     hsep
       [ "ActionFaced: ",
-        "betType: " <> viaShow _betType,
         "amountFaced: " <> pretty _amountFaced,
         "raiseSize: " <> pretty _raiseSize
       ]

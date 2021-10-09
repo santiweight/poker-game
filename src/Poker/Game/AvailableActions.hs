@@ -99,7 +99,7 @@ getStreetAvailableActions activePlayer st@GameState {_activeBet, _potSize, _stat
               then ABet (unStake _stateStakes) activePlayerStack
               else AAllIn activePlayerStack
        in Right (activePlayer, [AFold, ACheck, betA])
-    Just activeBet@(ActionFaced betTy amount raiseSize) -> do
+    Just activeBet@(ActionFaced amount raiseSize) -> do
       -- TODO handle BB can check preflop
       -- TODO:
       -- Bovada Hand #3761475002 TBL#18327252 HOLDEM No Limit - 2019-04-17 09:04:56
@@ -149,7 +149,7 @@ getStreetAvailableActions activePlayer st@GameState {_activeBet, _potSize, _stat
       Stack b ->
       ActionFaced b ->
       Maybe [AvailableAction b]
-    tryRaise (Pot potSize) streetInv (Stack plStack) (ActionFaced _ amountFaced raiseSize) =
+    tryRaise (Pot potSize) streetInv (Stack plStack) (ActionFaced amountFaced raiseSize) =
       let totalAvail = streetInv `add` plStack
           minRaise = amountFaced `add` raiseSize
        in if totalAvail < minRaise

@@ -280,14 +280,14 @@ emulateAction a = do
     setActiveBet :: IsGame m b => b -> b -> m ()
     setActiveBet raiseBy newFacedAmount =
       use activeBet >>= \case
-        Nothing -> activeBet ?= ActionFaced OneB newFacedAmount newFacedAmount
-        Just (ActionFaced bType amountFaced _) -> do
+        Nothing -> activeBet ?= ActionFaced newFacedAmount newFacedAmount
+        Just (ActionFaced amountFaced _) -> do
           raiseAmount <-
             maybeToErrorBundle
               a
               NewActionFacedLessThanPrevious
               (newFacedAmount `minus` amountFaced)
-          activeBet ?= ActionFaced (succ bType) newFacedAmount raiseAmount
+          activeBet ?= ActionFaced newFacedAmount raiseAmount
     handlePostAction :: (IsGame m b) => PostAction b -> m ()
     -- handlePostAction = _
     handlePostAction (PostAction pos val) = case val of
@@ -311,9 +311,9 @@ emulateAction a = do
           preuse (activeBet . _Just . amountFaced) >>= \case
             Just amountFaced'
               | postSize >= amountFaced' ->
-                activeBet ?= ActionFaced PostB postSize postSize
+                activeBet ?= ActionFaced postSize postSize
             Just _ -> pure ()
-            Nothing -> activeBet ?= ActionFaced PostB postSize postSize
+            Nothing -> activeBet ?= ActionFaced postSize postSize
           decStack pos postSize a
 
 mErrorAssert :: IsGame m b => Action b -> Bool -> GameError b -> m ()
