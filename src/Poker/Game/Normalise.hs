@@ -34,12 +34,6 @@ instance IsBet b => Normalise (Bov.History b) (GameState b) where
       posToPlayer = Map.mapMaybe normalise _wE
       _wE = Map.mapMaybe (`Map.lookup` _handPlayerMap) _handSeatMap --
 
-      -- TODO remove unsafe fromJust
-      -- Should the hands dealt to players be declared after the initialtable?
-      -- Or should GameState be a data family so we can pattern match on the current street
-
-
-
 instance Normalise (Bov.Player b) (Maybe (Stack b)) where
   normalise :: Bov.Player b -> Maybe (Stack b)
   normalise (Bov.Player m_ha b) =

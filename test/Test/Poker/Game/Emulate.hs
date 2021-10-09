@@ -42,13 +42,14 @@ import Poker.Game.AvailableActions
     availableActions,
   )
 import Poker.Game.Emulate
+import Poker.Game.Normalise (Normalise (normalise))
 import Poker.Game.Types
 import qualified Poker.History.Bovada.Model as Bov
 import qualified Poker.History.Bovada.Parser as Bov
 import Poker.History.Types
 import Prettyprinter
 import System.Directory
-import System.FilePath
+import System.FilePath hiding (normalise)
 import Text.Megaparsec
 import Text.Show.Pretty (pPrint, ppShow)
 
@@ -113,10 +114,7 @@ getCases ::
   Bov.History (Amount "USD") ->
   Either (GameErrorWithCtx (Amount "USD")) [Case (Amount "USD")]
 getCases hand' =
-  let normalisedActs =
-        mapMaybe normaliseBovadaAction $
-          Bov._handActions hand'
-      (preflopActs, postflopActs) =
+  let (preflopActs, postflopActs) =
         break
           (is (_MkDealerAction . only PlayerDeal))
           normalisedActs
@@ -124,7 +122,7 @@ getCases hand' =
         ( preflopActs `snoc` head postflopActs,
           filter (isn't _MkPostAction) $ tail postflopActs
         )
-      initState = bovadaHistoryToGameState hand'
+      initState = normalise hand'
       st :: GameState (Amount "USD") =
         either (error . ppShow) id . flip runGame initState $
           mapM_
@@ -138,6 +136,9 @@ getCases hand' =
           . ($ Case [] (head postflop') st)
           $ concatM (go <$> tail postflop')
   where
+    normalisedActs =
+      mapMaybe normalise $
+        Bov._handActions hand'
     go ::
       ( IsBet b,
         Pretty b,
@@ -278,72 +279,3 @@ concatM = foldr (>=>) pure
 
 runGame :: StateT s (Except e) a -> s -> Either e s
 runGame m = runExcept . execStateT m
-
--- unit_output :: IO ()
--- unit_output = outputAvailableActions
-
-bovadaHistoryToGameState :: IsBet b => Bov.History b -> GameState b
-bovadaHistoryToGameState Bov.History {Bov._handStakes, Bov._handPlayerMap, Bov._handSeatMap, Bov._handActions, Bov._handText} =
-  GameState
-    { _potSize = Pot mempty,
-      _street = InitialTable,
-      _stateStakes = _handStakes,
-      _toActQueue = Map.keys posToPlayer',
-      _posToStack = posToPlayer',
-      _streetInvestments = Map.empty,
-      _activeBet =
-        Just $
-          ActionFaced
-            { _position = BB,
-              _amountFaced = unStake _handStakes,
-              _raiseSize = unStake _handStakes
-            }
-    }
-  where
-    posToPlayer' = Map.mapMaybe normalizePlayer _wE
-
-    -- TODO remove unsafe fromJust
-    -- Should the hands dealt to players be declared after the initialtable?
-    -- Or should GameState be a data family so we can pattern match on the current street
-    normalizePlayer :: Bov.Player b -> Maybe (Stack b)
-    normalizePlayer (Bov.Player m_ha b) =
-      m_ha <&> \_ -> Stack b
-    _wE = Map.mapMaybe (`Map.lookup` _handPlayerMap) _handSeatMap --
-
-normaliseBovadaAction :: Bov.Action b -> Maybe (Action b)
-normaliseBovadaAction (Bov.MkBetAction po ba) =
-  Just $ MkPlayerAction $ PlayerAction po (normaliseBetAction ba)
-normaliseBovadaAction (Bov.MkDealerAction da) =
-  Just (MkDealerAction $ normaliseDealerAction da)
-normaliseBovadaAction (Bov.MkTableAction ta) =
-  MkPostAction <$> normaliseTableAction ta
-
-normaliseTableAction :: Bov.TableAction b -> Maybe (PostAction b)
-normaliseTableAction (Bov.KnownPlayer po tav) =
-  PostAction po <$> normaliseKnownTableAction tav
-normaliseTableAction (Bov.UnknownPlayer tav) = case tav of
-  -- TODO make invalid states unrepresentable ;)
-  Bov.Post _ -> error "Oh noes! A post action from an unknown player!"
-  Bov.PostDead _ -> error "Oh noes! A post action from an unknown player!"
-  _ -> Nothing
-
-normaliseKnownTableAction ::
-  Bov.TableActionValue b -> Maybe (PostActionValue b)
-normaliseKnownTableAction (Bov.Post am) = Just $ Post am
-normaliseKnownTableAction (Bov.PostDead am) = Just $ PostDead am
-normaliseKnownTableAction _ = Nothing
-
-normaliseDealerAction :: Bov.DealerAction -> DealerAction
-normaliseDealerAction Bov.PlayerDeal = PlayerDeal
-normaliseDealerAction (Bov.FlopDeal ca ca' ca2) = FlopDeal ca ca' ca2
-normaliseDealerAction (Bov.TurnDeal ca) = TurnDeal ca
-normaliseDealerAction (Bov.RiverDeal ca) = RiverDeal ca
-
-normaliseBetAction :: BetAction b -> BetAction b
-normaliseBetAction (Call am) = Call am
-normaliseBetAction (Raise am am') = Raise am am'
-normaliseBetAction (AllInRaise am am') = AllInRaise am am'
-normaliseBetAction (Bet am) = Bet am
-normaliseBetAction (AllIn am) = AllIn am
-normaliseBetAction Fold = Fold
-normaliseBetAction Check = Check
