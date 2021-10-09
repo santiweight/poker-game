@@ -23,18 +23,12 @@ instance IsBet b => Normalise (Bov.History b) (GameState b) where
       { _potSize = Pot mempty,
         _street = InitialTable,
         _stateStakes = _handStakes,
-        _aggressor = Nothing,
         _toActQueue = Map.keys posToPlayer,
         -- , _pastActions       = []
         -- , _futureActions     = _handActions
         _posToPlayer = posToPlayer,
         _streetInvestments = Map.empty,
-        _activeBet =
-          Just
-            ActionFaced
-              { _amountFaced = unStake _handStakes,
-                _raiseSize = unStake _handStakes
-              }
+        _activeBet = Nothing
       }
     where
       posToPlayer = Map.mapMaybe normalise _wE

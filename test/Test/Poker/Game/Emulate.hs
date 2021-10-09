@@ -285,16 +285,10 @@ bovadaHistoryToGameState Bov.History {Bov._handStakes, Bov._handPlayerMap, Bov._
     { _potSize = Pot mempty,
       _street = InitialTable,
       _stateStakes = _handStakes,
-      _aggressor = Nothing,
       _toActQueue = Map.keys posToPlayer',
       _posToPlayer = posToPlayer',
       _streetInvestments = Map.empty,
-      _activeBet =
-        Just
-          ActionFaced
-            { _amountFaced = unStake _handStakes,
-              _raiseSize = unStake _handStakes
-            }
+      _activeBet = Nothing
     }
   where
     posToPlayer' = Map.mapMaybe normalizePlayer _wE

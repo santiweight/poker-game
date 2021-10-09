@@ -181,8 +181,7 @@ emulateAction a = do
         flip (getBetSize pos) actVal
           =<< use (streetInvestments . at pos . non mempty)
       incPot betSize
-      when (isAggressive actVal) $ aggressor ?= pos
-      processActiveBet actVal
+      processActiveBet pos actVal
       processInvestment pos betSize
       decStack pos betSize a
       -- TODO all non-available actions should maybe have their own errors?
@@ -201,10 +200,7 @@ emulateAction a = do
       doRotateNextActor pos actVal
     MkDealerAction deal -> do
       addDealToState a deal
-      saveAggressor
-      case deal of
-        PlayerDeal -> pure ()
-        _ -> activeBet .= Nothing
+      activeBet .= Nothing
       use street >>= \case
         InitialTable -> toActQueue %= sortPreflop
         PreFlopBoard _ -> toActQueue %= sortPreflop
@@ -215,10 +211,6 @@ emulateAction a = do
   -- when (any actionMatches )
   pure ()
   where
-    saveAggressor :: IsGame m b => m ()
-    saveAggressor = aggressor .= Nothing
-    -- saveAggressor :: IsGame m => m ()
-    -- saveAggressor = (lastStreetAggressor .=) =<< aggressor <<.= Nothing
     isAggressive :: BetAction t -> Bool
     isAggressive = \case
       Call _ -> False
@@ -262,36 +254,36 @@ emulateAction a = do
             AllIn _ -> doRemove
             Fold -> doRemove
             Check -> doRotate
-    processActiveBet :: (IsGame m b) => BetAction b -> m ()
-    processActiveBet = \case
+    processActiveBet :: (IsGame m b) => Position -> BetAction b -> m ()
+    processActiveBet pos = \case
       Call _ -> pure ()
-      Raise amountBy amountTo -> setActiveBet amountBy amountTo
-      AllInRaise amountBy amountTo -> setActiveBet amountBy amountTo
-      Bet amount -> setActiveBet amount amount
+      Raise amountBy amountTo -> setActiveBet pos amountBy amountTo
+      AllInRaise amountBy amountTo -> setActiveBet pos amountBy amountTo
+      Bet amount -> setActiveBet pos amount amount
       AllIn amount -> do
         faced <- fromMaybe mempty <$> preuse (activeBet . _Just . amountFaced)
         -- TODO track whether action is opened up. Action is only open if minimum raise
         -- has been reached
         if amount > faced
-          then setActiveBet (fromJust $ amount `minus` faced) amount
+          then setActiveBet pos (fromJust $ amount `minus` faced) amount
           else pure ()
       Fold -> pure ()
       Check -> pure ()
-    setActiveBet :: IsGame m b => b -> b -> m ()
-    setActiveBet raiseBy newFacedAmount =
+    setActiveBet :: IsGame m b => Position -> b -> b -> m ()
+    setActiveBet pos raiseBy newFacedAmount =
       use activeBet >>= \case
-        Nothing -> activeBet ?= ActionFaced newFacedAmount newFacedAmount
-        Just (ActionFaced amountFaced _) -> do
+        Nothing -> activeBet ?= ActionFaced pos newFacedAmount newFacedAmount
+        Just (ActionFaced _ amountFaced _) -> do
           raiseAmount <-
             maybeToErrorBundle
               a
               NewActionFacedLessThanPrevious
               (newFacedAmount `minus` amountFaced)
-          activeBet ?= ActionFaced newFacedAmount raiseAmount
+          activeBet ?= ActionFaced pos newFacedAmount raiseAmount
     handlePostAction :: (IsGame m b) => PostAction b -> m ()
     -- handlePostAction = _
     handlePostAction (PostAction pos val) = case val of
-      Post postSize -> doPost postSize
+      Post postSize -> doPost pos postSize
       PostDead postSize -> do
         incPot postSize
         decStack pos postSize a
@@ -304,16 +296,16 @@ emulateAction a = do
             <> show postSize
         streetInvestments . at pos ?= stakes
       where
-        doPost :: (IsGame m b) => b -> m ()
-        doPost postSize = do
+        doPost :: (IsGame m b) => Position -> b -> m ()
+        doPost pos postSize = do
           incPot postSize
           streetInvestments . at pos ?= postSize
           preuse (activeBet . _Just . amountFaced) >>= \case
             Just amountFaced'
               | postSize >= amountFaced' ->
-                activeBet ?= ActionFaced postSize postSize
+                activeBet ?= ActionFaced pos postSize postSize
             Just _ -> pure ()
-            Nothing -> activeBet ?= ActionFaced postSize postSize
+            Nothing -> activeBet ?= ActionFaced pos postSize postSize
           decStack pos postSize a
 
 mErrorAssert :: IsGame m b => Action b -> Bool -> GameError b -> m ()

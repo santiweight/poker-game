@@ -62,13 +62,13 @@ availableActions ::
   (Pretty b, Ord b, IsBet b) =>
   GameState b ->
   Either Text (Position, [AvailableAction b])
-availableActions st@GameState {_potSize, _street, _stateStakes, _aggressor, _toActQueue, _posToPlayer, _streetInvestments, _activeBet}
+availableActions st@GameState {_potSize, _street, _stateStakes, _toActQueue, _posToPlayer, _streetInvestments, _activeBet}
   | -- TODO if a player is all in, then they are no longer in the act queue,
     -- but the game is not over!
     --  | length _toActQueue < 2
     --  = Left "No actors left"
     (activePlayer : _) <- _toActQueue,
-    Just activePlayer == _aggressor =
+    Just activePlayer == (_position <$> _activeBet) =
     Right (activePlayer, [])
   | otherwise =
     let activePlayer = head _toActQueue
@@ -84,7 +84,7 @@ getStreetAvailableActions ::
   Position ->
   GameState b ->
   Either Text (Position, [AvailableAction b])
-getStreetAvailableActions activePlayer st@GameState {_activeBet, _potSize, _stateStakes, _aggressor} =
+getStreetAvailableActions activePlayer st@GameState {_activeBet, _potSize, _stateStakes} =
   case _activeBet of
     Nothing ->
       let activePlayerStack =
@@ -99,7 +99,7 @@ getStreetAvailableActions activePlayer st@GameState {_activeBet, _potSize, _stat
               then ABet (unStake _stateStakes) activePlayerStack
               else AAllIn activePlayerStack
        in Right (activePlayer, [AFold, ACheck, betA])
-    Just activeBet@(ActionFaced amount raiseSize) -> do
+    Just activeBet@(ActionFaced _ amount raiseSize) -> do
       -- TODO handle BB can check preflop
       -- TODO:
       -- Bovada Hand #3761475002 TBL#18327252 HOLDEM No Limit - 2019-04-17 09:04:56
@@ -136,7 +136,7 @@ getStreetAvailableActions activePlayer st@GameState {_activeBet, _potSize, _stat
             | activePlayerStack `add` streetInv <= amount =
               AAllIn
                 activePlayerStack
-            | streetInv == amount && isNothing _aggressor = ACheck
+            | streetInv == amount && isNothing _activeBet = ACheck
             | otherwise = maybe ACheck ACall (amount `minus` streetInv)
       pure (activePlayer, callA : foldA : raiseAs)
   where
@@ -149,7 +149,7 @@ getStreetAvailableActions activePlayer st@GameState {_activeBet, _potSize, _stat
       Stack b ->
       ActionFaced b ->
       Maybe [AvailableAction b]
-    tryRaise (Pot potSize) streetInv (Stack plStack) (ActionFaced amountFaced raiseSize) =
+    tryRaise (Pot potSize) streetInv (Stack plStack) (ActionFaced _ amountFaced raiseSize) =
       let totalAvail = streetInv `add` plStack
           minRaise = amountFaced `add` raiseSize
        in if totalAvail < minRaise

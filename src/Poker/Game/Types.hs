@@ -83,7 +83,6 @@ data GameState g = GameState
   { _potSize :: Pot g,
     _street :: Board,
     _stateStakes :: Stake g,
-    _aggressor :: Maybe Position,
     _toActQueue :: [Position],
     _posToPlayer :: Map Position (Player g),
     _streetInvestments :: Map Position g,
@@ -97,7 +96,7 @@ deriving instance Eq a => Eq (GameState a)
 deriving instance Functor GameState
 
 instance Pretty b => Pretty (GameState b) where
-  pretty GameState {_potSize, _street, _stateStakes, _aggressor, _toActQueue, _posToPlayer, _streetInvestments, _activeBet} =
+  pretty GameState {_potSize, _street, _stateStakes, _toActQueue, _posToPlayer, _streetInvestments, _activeBet} =
     concatWith
       (\a b -> a <> line <> b)
       [ "Stakes:" <+> pretty _stateStakes,
@@ -112,14 +111,14 @@ instance Pretty b => Pretty (GameState b) where
                ),
         "Queue: " <> pretty (show _toActQueue),
         "ActiveBet:" <+> (viaShow . fmap pretty) _activeBet,
-        "Potsize: " <> pretty _potSize,
-        "Aggressor: " <> viaShow _aggressor
+        "Potsize: " <> pretty _potSize
       ]
     where
       asTuple = \(a, b) -> "(" <> a <> "," <> b <> ")"
 
 data ActionFaced t = ActionFaced
-  { _amountFaced :: t,
+  { _position :: Position,
+    _amountFaced :: t,
     _raiseSize :: t
   }
   deriving (Show, Read, Ord, Eq, Functor)
