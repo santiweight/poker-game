@@ -61,6 +61,7 @@ import Poker.Game.Types
 import Prettyprinter
 import Prettyprinter.Render.String
 import Poker.Game.Utils
+import Poker.Utils (prettyText)
 #else
 import           Data.Text.Prettyprint.Doc ( Pretty(pretty)
                                                 , defaultLayoutOptions
@@ -69,18 +70,13 @@ import           Data.Text.Prettyprint.Doc ( Pretty(pretty)
 import           Data.Text.Prettyprint.Doc.Render.String
 #endif
 
-{- IsGame Actions -}
-
--- Monadic action to alter state board with a deal action
-addDealToState :: IsGame m b => Action b -> DealerAction -> m ()
-addDealToState a deal = do
+emulateDeal :: IsGame m b => Action b -> DealerAction -> m ()
+emulateDeal a deal = do
   board <- use street
   case addDealToBoard deal board of
     Nothing -> throwError $ IncorrectDeal deal board
     Just board' -> street .= board'
   where
-    -- Take a deal data type and return a board
-    -- Returns Nothing if the Deal is illegal
     addDealToBoard :: DealerAction -> Board -> Maybe Board
     addDealToBoard PlayerDeal board@InitialTable = Just $ PreFlopBoard board
     addDealToBoard (FlopDeal c1 c2 c3) board@(PreFlopBoard _) =
@@ -97,7 +93,6 @@ emulateAction a = do
   res <- case a of
     MkPlayerAction pa@(PlayerAction pos actVal) -> do
       availActions <- get <&> availableActions
-
       use street >>= \case
         InitialTable -> throwError (PlayerActedPreDeal a)
         _ -> pure ()
@@ -118,11 +113,11 @@ emulateAction a = do
             throwError
               . CustomError
               $ "Action "
-                <> show (prettyString <$> a)
+                <> show (prettyText <$> a)
                 <> "is not available"
       doRotateNextActor pos actVal
     MkDealerAction deal -> do
-      addDealToState a deal
+      emulateDeal a deal
       activeBet .= Nothing
       use street >>= \case
         InitialTable -> toActQueue %= sortPreflop
@@ -131,7 +126,6 @@ emulateAction a = do
           streetInvestments . each .= mempty
           toActQueue %= sortPostflop
     MkPostAction act -> handlePostAction act
-  -- when (any actionMatches )
   pure ()
   where
     isAggressive :: BetAction t -> Bool
@@ -249,6 +243,3 @@ testIsGame actionM inputState = do
     -- prettyPrint e
     Right (_, state') -> do
       putStrLn "*** Game completed without error ***"
-
-prettyString :: Pretty a => a -> String
-prettyString = renderString . layoutPretty defaultLayoutOptions . pretty
