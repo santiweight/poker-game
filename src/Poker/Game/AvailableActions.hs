@@ -62,7 +62,7 @@ availableActions ::
   (Pretty b, Ord b, IsBet b) =>
   GameState b ->
   Either Text (Position, [AvailableAction b])
-availableActions st@GameState {_potSize, _street, _stateStakes, _toActQueue, _posToPlayer, _streetInvestments, _activeBet}
+availableActions st@GameState {_potSize, _street, _stateStakes, _toActQueue, _posToStack, _streetInvestments, _activeBet}
   | -- TODO if a player is all in, then they are no longer in the act queue,
     -- but the game is not over!
     --  | length _toActQueue < 2
@@ -89,10 +89,9 @@ getStreetAvailableActions activePlayer st@GameState {_activeBet, _potSize, _stat
     Nothing ->
       let activePlayerStack =
             st
-              ^. posToPlayer
+              ^. posToStack
                 . at activePlayer
                 . to fromJust
-                . stack
                 . to _unStack
           betA =
             if activePlayerStack > unStake _stateStakes
@@ -110,7 +109,7 @@ getStreetAvailableActions activePlayer st@GameState {_activeBet, _potSize, _stat
       -- Big Blind  [ME] : Big blind $0.25
       --     *** HOLE CARDS ***
       let activePlayerStackMay =
-            st ^? posToPlayer . at activePlayer . _Just . stack . to _unStack
+            st ^? posToStack . at activePlayer . _Just . to _unStack
       activePlayerStack <-
         maybe
           ( Left
@@ -122,10 +121,9 @@ getStreetAvailableActions activePlayer st@GameState {_activeBet, _potSize, _stat
           activePlayerStackMay
       let activePlayerStack =
             st
-              ^. posToPlayer
+              ^. posToStack
                 . at activePlayer
                 . to fromJust
-                . stack
                 . to _unStack
           streetInv = st ^. streetInvestments . at activePlayer . non mempty
           foldA = AFold

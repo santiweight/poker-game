@@ -286,7 +286,7 @@ bovadaHistoryToGameState Bov.History {Bov._handStakes, Bov._handPlayerMap, Bov._
       _street = InitialTable,
       _stateStakes = _handStakes,
       _toActQueue = Map.keys posToPlayer',
-      _posToPlayer = posToPlayer',
+      _posToStack = posToPlayer',
       _streetInvestments = Map.empty,
       _activeBet = Nothing
     }
@@ -296,9 +296,9 @@ bovadaHistoryToGameState Bov.History {Bov._handStakes, Bov._handPlayerMap, Bov._
     -- TODO remove unsafe fromJust
     -- Should the hands dealt to players be declared after the initialtable?
     -- Or should GameState be a data family so we can pattern match on the current street
-    normalizePlayer :: Bov.Player b -> Maybe (Player b)
+    normalizePlayer :: Bov.Player b -> Maybe (Stack b)
     normalizePlayer (Bov.Player m_ha b) =
-      m_ha <&> \holding -> Player {_playerHolding = holding, _stack = Stack b}
+      m_ha <&> \_ -> Stack b
     _wE = Map.mapMaybe (`Map.lookup` _handPlayerMap) _handSeatMap --
 
 normaliseBovadaAction :: Bov.Action b -> Maybe (Action b)

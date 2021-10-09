@@ -26,7 +26,7 @@ instance IsBet b => Normalise (Bov.History b) (GameState b) where
         _toActQueue = Map.keys posToPlayer,
         -- , _pastActions       = []
         -- , _futureActions     = _handActions
-        _posToPlayer = posToPlayer,
+        _posToStack = posToPlayer,
         _streetInvestments = Map.empty,
         _activeBet = Nothing
       }
@@ -40,10 +40,10 @@ instance IsBet b => Normalise (Bov.History b) (GameState b) where
 
 
 
-instance Normalise (Bov.Player b) (Maybe (Player b)) where
-  normalise :: Bov.Player b -> Maybe (Player b)
+instance Normalise (Bov.Player b) (Maybe (Stack b)) where
+  normalise :: Bov.Player b -> Maybe (Stack b)
   normalise (Bov.Player m_ha b) =
-    m_ha <&> \holding -> Player {_playerHolding = holding, _stack = Stack b}
+    m_ha <&> \holding -> Stack b
 
 instance Normalise (Bov.Action b) (Maybe (Action b)) where
   normalise :: Bov.Action b -> Maybe (Action b)

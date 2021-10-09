@@ -239,7 +239,6 @@ testIsGame actionM inputState = do
   case res of
     Left e -> do
       putStrLn "Game Failed"
-    -- prettyPrint e
     Right (_, state') -> do
       putStrLn "*** Game completed without error ***"
 

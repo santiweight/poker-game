@@ -76,8 +76,8 @@ type IsGame m b =
 incPot :: (IsBet b, MonadState (GameState b) m) => b -> m ()
 incPot bet = potSize . mapped %= add bet
 
-getPlayer :: MonadReader (GameState b) m => Position -> m (Maybe (Player b))
-getPlayer pos_ = ask <&> view (posToPlayer . at pos_)
+getPlayer :: MonadReader (GameState b) m => Position -> m (Maybe (Stack b))
+getPlayer pos_ = ask <&> view (posToStack . at pos_)
 
 -- Increase stack size at a seat position
 incStack :: (IsGame m b) => Position -> b -> Action b -> m ()
@@ -103,7 +103,7 @@ decStack pos amount badAct = do
 
 atPlayerStack :: Position -> Traversal' (GameState t) t
 atPlayerStack pos =
-  posToPlayer . ix pos . stack . lens _unStack (\_ s -> Stack s)
+  posToStack . ix pos . lens _unStack (\_ s -> Stack s)
 
 getStack :: IsGame m b => Action b -> Position -> m b
 getStack a pos =

@@ -68,23 +68,12 @@ newtype BigBlinds = BigBlinds Double deriving (Show, Eq, Ord)
 
 deriving instance Num BigBlinds
 
-data Player t = Player
-  { _playerHolding :: !Hand,
-    _stack :: !(Stack t)
-  }
-  deriving (Show, Eq, Ord, Generic, Functor)
-
-instance Pretty t => Pretty (Player t) where
-  pretty (Player ha st) = pretty ha <+> pretty st
-
-makeLenses ''Player
-
 data GameState g = GameState
   { _potSize :: Pot g,
     _street :: Board,
     _stateStakes :: Stake g,
     _toActQueue :: [Position],
-    _posToPlayer :: Map Position (Player g),
+    _posToStack :: Map Position (Stack g),
     _streetInvestments :: Map Position g,
     _activeBet :: Maybe (ActionFaced g)
   }
@@ -96,7 +85,7 @@ deriving instance Eq a => Eq (GameState a)
 deriving instance Functor GameState
 
 instance Pretty b => Pretty (GameState b) where
-  pretty GameState {_potSize, _street, _stateStakes, _toActQueue, _posToPlayer, _streetInvestments, _activeBet} =
+  pretty GameState {_potSize, _street, _stateStakes, _toActQueue, _posToStack, _streetInvestments, _activeBet} =
     concatWith
       (\a b -> a <> line <> b)
       [ "Stakes:" <+> pretty _stateStakes,
@@ -107,7 +96,7 @@ instance Pretty b => Pretty (GameState b) where
             <> line
             <> ( vsep . fmap (asTuple . bimap pretty pretty) $
                    Map.toList
-                     _posToPlayer
+                     _posToStack
                ),
         "Queue: " <> pretty (show _toActQueue),
         "ActiveBet:" <+> (viaShow . fmap pretty) _activeBet,
