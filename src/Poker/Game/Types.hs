@@ -45,6 +45,8 @@ data PlayerAction t = PlayerAction {_pos :: !Position, _action :: !(BetAction t)
 data PostActionValue t
   = Post !t
   | PostDead !t
+  | PostSuperDead !t
+  | Ante !t
   deriving (Read, Show, Ord, Eq, Functor)
 
 data PostAction t = PostAction !Position !(PostActionValue t)
@@ -149,7 +151,7 @@ data GameError g
   | NegativePlayerStack (Action g)
   | IncorrectDeal DealerAction Board
   | PlayerActedPreDeal {_badAct :: Action g}
-  | CallWrongAmount {_expected :: g, _badAct :: Action g}
+  | CallWrongAmount {_streetInvestment :: g, _expected :: g, _badAct :: Action g}
   | NegativePotSize
   | WrongPlayerActed
       { _expectedPosition :: Position,

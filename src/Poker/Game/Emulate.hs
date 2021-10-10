@@ -127,15 +127,14 @@ emulateAction a = do
       case act of
         Call amount -> do
           mErrorAssert (amount `add` previousInvestment == activeBetSize) $
-            CallWrongAmount activeBetSize a
+            CallWrongAmount previousInvestment activeBetSize a
           pure amount -- - previousInvestment
         Raise _ amountTo -> pure . fromJust $ amountTo `minus` previousInvestment
         AllInRaise _ amountTo -> pure . fromJust $ amountTo `minus` previousInvestment
         Bet amount -> pure amount
         AllIn amount -> do
           playerStack <- getStack a pos
-          streetInvestment <- use $ streetInvestments . at pos .non mempty
-          mErrorAssert (amount == playerStack) (AllInNotFullStack streetInvestment playerStack a)
+          mErrorAssert (amount == playerStack) (AllInNotFullStack previousInvestment playerStack a)
           -- mErrorAssert (amount <> streetInvestment == playerStack) (AllInNotFullStack streetInvestment playerStack a)
           pure amount
         Fold -> pure mempty
@@ -188,6 +187,12 @@ emulateAction a = do
         decStack pos postSize a
         stateStakes' <- use stateStakes
         streetInvestments . at pos . non mempty %= add (minimum [postSize, unStake stateStakes'])
+      PostSuperDead postSize -> do
+        incPot postSize
+        decStack pos postSize a
+      Ante amt -> do
+        incPot amt
+        decStack pos amt a
       where
         doPost :: (IsGame m b) => Position -> b -> m ()
         doPost pos postSize = do

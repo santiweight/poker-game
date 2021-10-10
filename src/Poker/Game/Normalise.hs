@@ -8,11 +8,11 @@ module Poker.Game.Normalise where
 
 import Data.Functor ((<&>))
 import qualified Data.Map.Strict as Map
+import Data.Maybe (fromJust)
 import Poker
 import Poker.Game.Types
 import qualified Poker.History.Bovada.Model as Bov
 import qualified Poker.History.PokerStars.Model as PS
-import Data.Maybe (fromJust)
 
 -- | A class to normalise a non-canonical poker game model to the canonical model
 -- defined in this package.
@@ -82,11 +82,12 @@ instance IsBet b => Normalise (PS.History b) (GameState b) where
         _toActQueue = fromJust . flip Map.lookup _handSeatMap <$> Map.keys _handSeatMap,
         -- , _pastActions       = []
         -- , _futureActions     = _handActions
-        _posToStack = Map.fromList $ Map.assocs _handPlayerMap <&> (\(seat, PS.Player txt b) ->  (findPos seat, Stack b)),
+        _posToStack = Map.fromList $ Map.assocs _handPlayerMap <&> (\(seat, PS.Player txt b) -> (findPos seat, Stack b)),
         _streetInvestments = Map.empty,
         _activeBet = Nothing
       }
-    where findPos = fromJust . flip Map.lookup _handSeatMap
+    where
+      findPos = fromJust . flip Map.lookup _handSeatMap
 
 instance Normalise (PS.Player b) (Maybe (Stack b)) where
   normalise :: PS.Player b -> Maybe (Stack b)
@@ -114,6 +115,9 @@ instance Normalise (PS.TableAction b) (Maybe (PostAction b)) where
 instance Normalise (PS.TableActionValue b) (Maybe (PostActionValue b)) where
   normalise :: PS.TableActionValue b -> Maybe (PostActionValue b)
   normalise (PS.Post am) = Just $ Post am
+  normalise (PS.PostDead am) = Just $ PostDead am
+  normalise (PS.PostSuperDead am) = Just $ PostSuperDead am
+  normalise (PS.Ante am) = Just $ Ante am
   normalise _ = Nothing
 
 instance Normalise PS.DealerAction DealerAction where

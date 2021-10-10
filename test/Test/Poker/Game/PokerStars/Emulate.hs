@@ -83,7 +83,7 @@ parseHands fp = do
 
 allHands :: IO (Map FilePath [PS.History (Amount "USD")])
 allHands = do
-  fps <- take 1 <$> allHandFiles
+  fps <- allHandFiles
   results <- (\fp -> (fp,) <$> parseHands fp) `mapM` fps
   let resultsUsd = (fmap . fmap . fmap) unsafeToUsdHand <$> results
   pure . Map.fromList $ resultsUsd
@@ -92,11 +92,13 @@ makePrisms ''Action
 
 unit_testAllPokerStarsHands :: IO ()
 unit_testAllPokerStarsHands = do
-  fileResults <- take 1 . Map.toList <$> Test.Poker.Game.PokerStars.Emulate.allHands
+  fileResults <- Map.toList <$> Test.Poker.Game.PokerStars.Emulate.allHands
   cases <- execWriterT $
-    forM fileResults $ \(fp, hands) -> forM (take 10 hands) $ \hand -> case getCases hand of
+    forM fileResults $ \(fp, hands) -> forM hands $ \hand -> case getCases hand of
       Left err -> do
         liftIO $ print $ "Skipping potentially corrupted history #" <> show (PS.gameId . PS.header $ hand) <> " in file " <> fp
+        liftIO $ pPrint $ PS._handActions hand
+        liftIO $ pPrint $ normalise <$> PS._handActions hand
         liftIO $ pPrint err
       Right cas -> tell ((fp,hand,) <$> cas) >> pure ()
   print $ "Testing " <> show (sum $ length . snd <$> fileResults) <> " hands"
