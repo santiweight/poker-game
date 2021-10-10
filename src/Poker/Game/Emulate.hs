@@ -129,8 +129,8 @@ emulateAction a = do
           mErrorAssert (amount `add` previousInvestment == activeBetSize) $
             CallWrongAmount activeBetSize a
           pure amount -- - previousInvestment
-        Raise amountBy _ -> pure amountBy
-        AllInRaise amountBy _ -> pure amountBy
+        Raise _ amountTo -> pure . fromJust $ amountTo `minus` previousInvestment
+        AllInRaise _ amountTo -> pure . fromJust $ amountTo `minus` previousInvestment
         Bet amount -> pure amount
         AllIn amount -> do
           playerStack <- getStack a pos
