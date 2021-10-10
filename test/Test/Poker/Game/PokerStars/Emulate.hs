@@ -1,9 +1,6 @@
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE TupleSections #-}
 
-module Test.Poker.Game.Emulate where
-
+module Test.Poker.Game.PokerStars.Emulate where
 import Control.Lens hiding (Fold)
 import Control.Lens.Extras (is)
 import Control.Monad.Except
@@ -35,21 +32,25 @@ import Poker.Game.AvailableActions
 import Poker.Game.Emulate
 import Poker.Game.Normalise (Normalise (normalise))
 import Poker.Game.Types
-import qualified Poker.History.Bovada.Model as Bov
-import qualified Poker.History.Bovada.Parser as Bov
+import qualified Poker.History.PokerStars.Model as PS
+import qualified Poker.History.PokerStars.Parser as PS
 import Poker.History.Types
 import Prettyprinter
 import System.Directory
 import System.FilePath hiding (normalise)
 import Text.Megaparsec
 import Text.Show.Pretty (pPrint, ppShow)
+import qualified Data.Text.Encoding as T
+import qualified Data.Text.Encoding.Error as T
+import qualified Data.ByteString as BS
+
 
 testDir :: IO FilePath
 testDir = getCurrentDirectory <&> (</> "test")
 
 allHandFiles :: IO [FilePath]
 allHandFiles = do
-  casesDir <- (</> "test/example-handhistories/Bovada") <$> getCurrentDirectory
+  casesDir <- (</> "test/example-handhistories/2021-07-30_CO_NL50_FR_OOFGJJQ17") <$> getCurrentDirectory
   listDirectory casesDir <&> fmap (casesDir </>)
 
 parseFile ::
@@ -57,29 +58,45 @@ parseFile ::
   IO
     ( Either
         (ParseErrorBundle Text Void)
-        [Bov.History SomeBetSize]
+        [PS.History SomeBetSize]
     )
 parseFile f = do
   file <- T.readFile f
-  return . parse Bov.pHands [] $ file
+  return . parse PS.pHands [] $ file
 
-allHands :: IO (Map FilePath [Bov.History (Amount "USD")])
+parseString ::
+  Text ->
+  Either (ParseErrorBundle Text Void) [PS.History SomeBetSize]
+parseString = parse PS.pHands []
+
+dropBOM :: BS.ByteString -> BS.ByteString
+dropBOM bs
+  | BS.take 3 bs == BS.pack [0xEF, 0xBB, 0xBF] = BS.drop 3 bs
+  | otherwise = bs
+
+parseHands :: FilePath -> IO [PS.History SomeBetSize]
+parseHands fp = do
+  handFileContents <- BS.readFile fp
+  let handFileContents' = dropBOM handFileContents
+  let res = parseString $ T.decodeUtf8With T.lenientDecode handFileContents'
+  pure $ either (error . errorBundlePretty) id res
+
+allHands :: IO (Map FilePath [PS.History (Amount "USD")])
 allHands = do
-  fps <- allHandFiles
-  -- print $ length fps
-  results <- (\fp -> (fp,) <$> parseFile fp) `mapM` fps
-  let resultsUsd = (fmap . fmap . fmap . fmap) unsafeToUsdHand <$> results
-  pure . Map.mapMaybe eitherToMaybe . Map.fromList $ resultsUsd
+  fps <- take 1 <$> allHandFiles
+  results <- (\fp -> (fp,) <$> parseHands fp) `mapM` fps
+  let resultsUsd = (fmap . fmap . fmap) unsafeToUsdHand <$> results
+  pure . Map.fromList $ resultsUsd
 
 makePrisms ''Action
 
-unit_testAllHands :: IO ()
-unit_testAllHands = do
-  fileResults <- Map.toList <$> Test.Poker.Game.Emulate.allHands
+unit_testAllPokerStarsHands :: IO ()
+unit_testAllPokerStarsHands = do
+  fileResults <- take 1 . Map.toList <$> Test.Poker.Game.PokerStars.Emulate.allHands
   cases <- execWriterT $
-    forM fileResults $ \(fp, hands) -> forM hands $ \hand -> case getCases hand of
+    forM fileResults $ \(fp, hands) -> forM (take 10 hands) $ \hand -> case getCases hand of
       Left err -> do
-        liftIO $ print $ "Skipping potentially corrupted history: " <> show (Bov.gameId . Bov.header $ hand)
+        liftIO $ print $ "Skipping potentially corrupted history #" <> show (PS.gameId . PS.header $ hand) <> " in file " <> fp
         liftIO $ pPrint err
       Right cas -> tell ((fp,hand,) <$> cas) >> pure ()
   print $ "Testing " <> show (sum $ length . snd <$> fileResults) <> " hands"
@@ -87,7 +104,7 @@ unit_testAllHands = do
   forM_ cases $ \(fp, history, historyCase) -> do
     runCase
       fp
-      (Bov.gameId . Bov.header $ history)
+      (PS.gameId . PS.header $ history)
       historyCase
 
 data Case b = Case
@@ -99,7 +116,7 @@ data Case b = Case
 -- Total cases: 186572
 --
 getCases ::
-  Bov.History (Amount "USD") ->
+  PS.History (Amount "USD") ->
   Either (GameErrorWithCtx (Amount "USD")) [Case (Amount "USD")]
 getCases hand' = runExcept $ execWriterT $ foldlM go preflopState nonPostActs
   where
@@ -112,7 +129,7 @@ getCases hand' = runExcept $ execWriterT $ foldlM go preflopState nonPostActs
       Right gs -> gs
     normalisedActs =
       mapMaybe normalise $
-        Bov._handActions hand'
+        PS._handActions hand'
     (postActs, nonPostActs) =
       let (postActs', nonPostActs') =
             break

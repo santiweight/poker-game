@@ -11,6 +11,8 @@ import qualified Data.Map.Strict as Map
 import Poker
 import Poker.Game.Types
 import qualified Poker.History.Bovada.Model as Bov
+import qualified Poker.History.PokerStars.Model as PS
+import Data.Maybe (fromJust)
 
 -- | A class to normalise a non-canonical poker game model to the canonical model
 -- defined in this package.
@@ -70,3 +72,52 @@ instance Normalise Bov.DealerAction DealerAction where
   normalise (Bov.FlopDeal ca ca' ca2) = FlopDeal ca ca' ca2
   normalise (Bov.TurnDeal ca) = TurnDeal ca
   normalise (Bov.RiverDeal ca) = RiverDeal ca
+
+instance IsBet b => Normalise (PS.History b) (GameState b) where
+  normalise PS.History {PS._handStakes, PS._handPlayerMap, PS._handSeatMap, PS._handActions, PS._handText} =
+    GameState
+      { _potSize = Pot mempty,
+        _street = InitialTable,
+        _stateStakes = _handStakes,
+        _toActQueue = fromJust . flip Map.lookup _handSeatMap <$> Map.keys _handSeatMap,
+        -- , _pastActions       = []
+        -- , _futureActions     = _handActions
+        _posToStack = Map.fromList $ Map.assocs _handPlayerMap <&> (\(seat, PS.Player txt b) ->  (findPos seat, Stack b)),
+        _streetInvestments = Map.empty,
+        _activeBet = Nothing
+      }
+    where findPos = fromJust . flip Map.lookup _handSeatMap
+
+instance Normalise (PS.Player b) (Maybe (Stack b)) where
+  normalise :: PS.Player b -> Maybe (Stack b)
+  normalise (PS.Player m_ha b) = Just $ Stack b
+
+instance Normalise (PS.Action b) (Maybe (Action b)) where
+  normalise :: PS.Action b -> Maybe (Action b)
+  normalise (PS.MkBetAction po ba) =
+    Just $ MkPlayerAction $ PlayerAction po ba
+  normalise (PS.MkDealerAction da) =
+    Just (MkDealerAction $ normalise da)
+  normalise (PS.MkTableAction ta) =
+    MkPostAction <$> normalise ta
+
+instance Normalise (PS.TableAction b) (Maybe (PostAction b)) where
+  normalise ::
+    PS.TableAction b -> Maybe (PostAction b)
+  normalise (PS.KnownPlayer po tav) =
+    PostAction po <$> normalise tav
+  normalise (PS.UnknownPlayer tav) = case tav of
+    -- TODO make invalid states unrepresentable ;)
+    PS.Post am -> error "Oh noes! A post action from an unknown player!"
+    _ -> Nothing
+
+instance Normalise (PS.TableActionValue b) (Maybe (PostActionValue b)) where
+  normalise :: PS.TableActionValue b -> Maybe (PostActionValue b)
+  normalise (PS.Post am) = Just $ Post am
+  normalise _ = Nothing
+
+instance Normalise PS.DealerAction DealerAction where
+  normalise PS.PlayerDeal = PlayerDeal
+  normalise (PS.FlopDeal ca ca' ca2) = FlopDeal ca ca' ca2
+  normalise (PS.TurnDeal ca) = TurnDeal ca
+  normalise (PS.RiverDeal ca) = RiverDeal ca

@@ -155,7 +155,7 @@ data GameError g
       { _expectedPosition :: Position,
         _actualPosition :: Position
       }
-  | AllInNotFullStack {_stackSize :: g, _badAllInAct :: Action g}
+  | AllInNotFullStack {_streetInvestment :: g, _stackSize :: g, _badAllInAct :: Action g}
   | ActedPreDeal
   | NoPlayersInQueue
   | NewActionFacedLessThanPrevious

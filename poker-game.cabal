@@ -64,6 +64,7 @@ test-suite all-tests
   main-is: Driver.hs
   other-modules:
       Test.Poker.Game.Emulate
+      Test.Poker.Game.PokerStars.Emulate
       Paths_poker_game
   hs-source-dirs:
       test
@@ -71,6 +72,7 @@ test-suite all-tests
   ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall -Wno-unticked-promoted-constructors
   build-depends:
       base
+    , bytestring
     , containers
     , directory
     , extra

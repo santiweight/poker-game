@@ -134,7 +134,9 @@ emulateAction a = do
         Bet amount -> pure amount
         AllIn amount -> do
           playerStack <- getStack a pos
-          mErrorAssert (amount == playerStack) (AllInNotFullStack playerStack a)
+          streetInvestment <- use $ streetInvestments . at pos .non mempty
+          mErrorAssert (amount == playerStack) (AllInNotFullStack streetInvestment playerStack a)
+          -- mErrorAssert (amount <> streetInvestment == playerStack) (AllInNotFullStack streetInvestment playerStack a)
           pure amount
         Fold -> pure mempty
         Check -> pure mempty
