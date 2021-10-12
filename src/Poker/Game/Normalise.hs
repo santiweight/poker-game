@@ -39,7 +39,7 @@ instance IsBet b => Normalise (Bov.History b) (GameState b) where
 instance Normalise (Bov.Player b) (Maybe (Stack b)) where
   normalise :: Bov.Player b -> Maybe (Stack b)
   normalise (Bov.Player m_ha b) =
-    m_ha <&> \holding -> Stack b
+    m_ha <&> \_ -> Stack b
 
 instance Normalise (Bov.Action b) (Maybe (Action b)) where
   normalise :: Bov.Action b -> Maybe (Action b)
@@ -57,8 +57,8 @@ instance Normalise (Bov.TableAction b) (Maybe (PostAction b)) where
     PostAction po <$> normalise tav
   normalise (Bov.UnknownPlayer tav) = case tav of
     -- TODO make invalid states unrepresentable ;)
-    Bov.Post am -> error "Oh noes! A post action from an unknown player!"
-    Bov.PostDead am -> error "Oh noes! A post action from an unknown player!"
+    Bov.Post _ -> error "Oh noes! A post action from an unknown player!"
+    Bov.PostDead _ -> error "Oh noes! A post action from an unknown player!"
     _ -> Nothing
 
 instance Normalise (Bov.TableActionValue b) (Maybe (PostActionValue b)) where
@@ -82,7 +82,7 @@ instance IsBet b => Normalise (PS.History b) (GameState b) where
         _toActQueue = fromJust . flip Map.lookup _handSeatMap <$> Map.keys _handSeatMap,
         -- , _pastActions       = []
         -- , _futureActions     = _handActions
-        _posToStack = Map.fromList $ Map.assocs _handPlayerMap <&> (\(seat, PS.Player txt b) -> (findPos seat, Stack b)),
+        _posToStack = Map.fromList $ Map.assocs _handPlayerMap <&> (\(seat, PS.Player _ b) -> (findPos seat, Stack b)),
         _streetInvestments = Map.empty,
         _activeBet = Nothing
       }
@@ -91,7 +91,7 @@ instance IsBet b => Normalise (PS.History b) (GameState b) where
 
 instance Normalise (PS.Player b) (Maybe (Stack b)) where
   normalise :: PS.Player b -> Maybe (Stack b)
-  normalise (PS.Player m_ha b) = Just $ Stack b
+  normalise (PS.Player _ b) = Just $ Stack b
 
 instance Normalise (PS.Action b) (Maybe (Action b)) where
   normalise :: PS.Action b -> Maybe (Action b)
@@ -109,7 +109,7 @@ instance Normalise (PS.TableAction b) (Maybe (PostAction b)) where
     PostAction po <$> normalise tav
   normalise (PS.UnknownPlayer tav) = case tav of
     -- TODO make invalid states unrepresentable ;)
-    PS.Post am -> error "Oh noes! A post action from an unknown player!"
+    PS.Post _ -> error "Oh noes! A post action from an unknown player!"
     _ -> Nothing
 
 instance Normalise (PS.TableActionValue b) (Maybe (PostActionValue b)) where

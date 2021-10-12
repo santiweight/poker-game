@@ -14,7 +14,6 @@ import Control.Lens
     makeLenses,
     makePrisms,
   )
-import Data.Data
 import Data.Map (Map)
 import qualified Data.Map.Strict as Map
 #if MIN_VERSION_prettyprinter(1,7,0)
@@ -23,19 +22,7 @@ import Prettyprinter
 import Data.Text.Prettyprint.Doc
 import Data.Text.Prettyprint.Doc (Pretty (pretty))
 #endif
-import GHC.Generics (Generic)
 import Poker
-  ( BetAction,
-    BigBlind,
-    Board,
-    Card (Card),
-    Hand,
-    Position,
-    Pot,
-    Seat,
-    Stack (Stack),
-    Stake,
-  )
 
 data PlayerAction t = PlayerAction {_pos :: !Position, _action :: !(BetAction t)}
   deriving (Read, Show, Eq, Ord, Functor)
@@ -123,8 +110,7 @@ instance Pretty b => Pretty (ActionFaced b) where
       ]
 
 data BetType
-  = PostB
-  | OneB
+  = OneB
   | TwoB
   | ThreeB
   | FourB
@@ -148,7 +134,7 @@ data BetType
 data GameError g
   = PlayerNotFound
   | SeatNotFound Position (Action g)
-  | NegativePlayerStack (Action g)
+  | NegativePlayerStack
   | IncorrectDeal DealerAction Board
   | PlayerActedPreDeal {_badAct :: Action g}
   | CallWrongAmount {_streetInvestment :: g, _expected :: g, _badAct :: Action g}
@@ -170,7 +156,9 @@ instance Pretty g => Pretty (GameError g) where
 data EvalState t = EvalState
   { _nextActions :: [Action t],
     _accRanges :: Map String (ActionRange t),
-    _handState :: GameState t
+    _handState :: GameState t,
+    _holdings :: Map Position Hand,
+    _activeBetType :: Maybe BetType
   }
   deriving (Show)
 
@@ -178,7 +166,6 @@ type ActionRange t = Map Hand [BetAction t]
 
 makeLenses 'EvalState
 makeLenses ''GameError
-makeLenses ''PlayerAction
 makeLenses ''ActionFaced
 makePrisms ''GameError
 makePrisms ''Board

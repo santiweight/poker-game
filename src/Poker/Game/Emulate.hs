@@ -6,50 +6,34 @@
 
 module Poker.Game.Emulate where
 
-import Control.Arrow ((>>>))
 import Control.Lens
   ( At (at),
     Each (each),
     Identity (runIdentity),
-    Ixed (ix),
-    Traversal',
-    lens,
-    makeLenses,
-    mapped,
     non,
     preuse,
-    to,
-    uncons,
     use,
-    view,
     (%=),
     (&),
-    (+=),
-    (-=),
     (.=),
-    (<%=),
     (<&>),
-    (<<.=),
     (?=),
     _Just,
   )
 import Control.Monad.Except
   ( Except,
     ExceptT,
-    MonadError,
     runExcept,
     runExceptT,
     throwError,
   )
 import Control.Monad.Reader
 import Control.Monad.State.Lazy
-import qualified Data.Map as M
 import Data.Maybe
   ( fromJust,
     fromMaybe,
   )
 import qualified Data.Text as T
-import Debug.Trace
 import Poker
 import Poker.Game.AvailableActions
   ( actionMatches,
@@ -62,18 +46,11 @@ import Prettyprinter
 import Prettyprinter.Render.String
 import Poker.Game.Utils
 
-
-
-
-
-
-
-
 -- Monadic action to execute an Action datatype on the given state
 emulateAction :: forall m b. (IsGame m b) => Action b -> m ()
 emulateAction a = do
-  res <- case a of
-    MkPlayerAction pa@(PlayerAction pos actVal) -> do
+  case a of
+    MkPlayerAction (PlayerAction pos actVal) -> do
       availActions <- get <&> availableActions
       use street >>= \case
         InitialTable -> throwError (PlayerActedPreDeal a)
@@ -84,22 +61,22 @@ emulateAction a = do
       incPot betSize
       processActiveBet pos actVal
       processInvestment pos betSize
-      decStack pos betSize a
+      decStack pos betSize
       -- TODO all non-available actions should maybe have their own errors?
       -- It would be good to silence error on each side (available/emulate)
       -- and then ensure that the same errors are covered by each.
       availActions & \case
         Left txt -> throwError . CustomError . T.unpack $ txt
-        Right (pos, availableActions) ->
-          unless (any (actionMatches actVal) availableActions) $
+        Right (availPos, availableActs) ->
+          unless (any (actionMatches actVal) availableActs) $
             throwError
               . CustomError
               $ "Action "
                 <> show (prettyString <$> a)
-                <> "is not available\nAvailable Actions are: " <> show (pos, availableActions)
+                <> "is not available\nAvailable Actions are: " <> show (availPos, availableActs)
       doRotateNextActor pos actVal
     MkDealerAction deal -> do
-      emulateDeal a deal
+      emulateDeal deal
       use street >>= \case
         InitialTable -> toActQueue %= sortPreflop
         PreFlopBoard _ -> toActQueue %= sortPreflop
@@ -110,15 +87,6 @@ emulateAction a = do
     MkPostAction act -> handlePostAction act
   pure ()
   where
-    isAggressive :: BetAction t -> Bool
-    isAggressive = \case
-      Call _ -> False
-      Raise _ _ -> True
-      AllInRaise _ _ -> True
-      Bet _ -> True
-      AllIn _ -> False
-      Fold -> False
-      Check -> False
     getBetSize :: Position -> b -> BetAction b -> m b
     getBetSize pos previousInvestment act = do
       activeBetSize <-
@@ -133,7 +101,7 @@ emulateAction a = do
         AllInRaise _ amountTo -> pure . fromJust $ amountTo `minus` previousInvestment
         Bet amount -> pure amount
         AllIn amount -> do
-          playerStack <- getStack a pos
+          playerStack <- getStack pos
           mErrorAssert (amount == playerStack) (AllInNotFullStack previousInvestment playerStack a)
           -- mErrorAssert (amount <> streetInvestment == playerStack) (AllInNotFullStack streetInvestment playerStack a)
           pure amount
@@ -144,8 +112,8 @@ emulateAction a = do
       streetInvestments . at pos . non mempty %= add betSize
     doRotateNextActor :: IsGame m b => Position -> BetAction t -> m ()
     doRotateNextActor pos =
-      let doRemove = removeNextActor a pos
-          doRotate = rotateNextActor a pos
+      let doRemove = removeNextActor pos
+          doRotate = rotateNextActor pos
        in \case
             Call _ -> doRotate
             Raise _ _ -> doRotate
@@ -170,41 +138,41 @@ emulateAction a = do
       Fold -> pure ()
       Check -> pure ()
     setActiveBet :: IsGame m b => Position -> b -> b -> m ()
-    setActiveBet pos raiseBy newFacedAmount =
+    setActiveBet pos _ newFacedAmount =
       use activeBet >>= \case
         Nothing -> activeBet ?= ActionFaced pos newFacedAmount newFacedAmount
-        Just (ActionFaced _ amountFaced _) -> do
+        Just (ActionFaced _ amountFaced' _) -> do
           raiseAmount <-
             maybeToError
               NewActionFacedLessThanPrevious
-              (newFacedAmount `minus` amountFaced)
+              (newFacedAmount `minus` amountFaced')
           activeBet ?= ActionFaced pos newFacedAmount raiseAmount
     handlePostAction :: (IsGame m b) => PostAction b -> m ()
     handlePostAction (PostAction pos val) = case val of
       Post postSize -> doPost pos postSize
       PostDead postSize -> do
         incPot postSize
-        decStack pos postSize a
+        decStack pos postSize
         stateStakes' <- use stateStakes
         streetInvestments . at pos . non mempty %= add (minimum [postSize, unStake stateStakes'])
       PostSuperDead postSize -> do
         incPot postSize
-        decStack pos postSize a
+        decStack pos postSize
       Ante amt -> do
         incPot amt
-        decStack pos amt a
-      where
-        doPost :: (IsGame m b) => Position -> b -> m ()
-        doPost pos postSize = do
-          incPot postSize
-          streetInvestments . at pos ?= postSize
-          preuse (activeBet . _Just . amountFaced) >>= \case
-            Just amountFaced'
-              | postSize >= amountFaced' ->
-                activeBet ?= ActionFaced pos postSize postSize
-            Just _ -> pure ()
-            Nothing -> activeBet ?= ActionFaced pos postSize postSize
-          decStack pos postSize a
+        decStack pos amt
+
+doPost :: (IsGame m b) => Position -> b -> m ()
+doPost pos' postSize = do
+  incPot postSize
+  streetInvestments . at pos' ?= postSize
+  preuse (activeBet . _Just . amountFaced) >>= \case
+    Just amountFaced'
+      | postSize >= amountFaced' ->
+        activeBet ?= ActionFaced pos' postSize postSize
+    Just _ -> pure ()
+    Nothing -> activeBet ?= ActionFaced pos' postSize postSize
+  decStack pos' postSize
 
 execIsGame :: StateT s (Except e) a -> s -> Either e s
 execIsGame m = runExcept . execStateT m
@@ -215,8 +183,8 @@ evalIsGame m = runIdentity . runExceptT . evalStateT m
 prettyString :: Pretty a => a -> String
 prettyString = renderString . layoutPretty defaultLayoutOptions . pretty
 
-emulateDeal :: IsGame m b => Action b -> DealerAction -> m ()
-emulateDeal a deal = do
+emulateDeal :: IsGame m b => DealerAction -> m ()
+emulateDeal deal = do
   board <- use street
   case addDealToBoard deal board of
     Nothing -> throwError $ IncorrectDeal deal board

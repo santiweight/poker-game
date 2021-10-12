@@ -10,7 +10,7 @@ import Control.Monad.Except
   )
 import Control.Monad.State.Strict
 import Control.Monad.Writer
-import Data.Either.Extra (eitherToMaybe, mapLeft)
+import Data.Either.Extra (mapLeft)
 import Data.Foldable.Extra (foldlM)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
@@ -95,11 +95,11 @@ unit_testAllPokerStarsHands = do
   fileResults <- Map.toList <$> Test.Poker.Game.PokerStars.Emulate.allHands
   cases <- execWriterT $
     forM fileResults $ \(fp, hands) -> forM hands $ \hand -> case getCases hand of
-      Left err -> do
+      Left err' -> do
         liftIO $ print $ "Skipping potentially corrupted history #" <> show (PS.gameId . PS.header $ hand) <> " in file " <> fp
         liftIO $ pPrint $ PS._handActions hand
         liftIO $ pPrint $ normalise <$> PS._handActions hand
-        liftIO $ pPrint err
+        liftIO $ pPrint err'
       Right cas -> tell ((fp,hand,) <$> cas) >> pure ()
   print $ "Testing " <> show (sum $ length . snd <$> fileResults) <> " hands"
   print $ "Testing " <> show (length cases) <> " cases"
@@ -211,7 +211,7 @@ runCase originalFile handId (Case nextA gs) = do
                   show $ prettyString <$> badTestAct
                 ]
     (Just _, Left (T.unpack -> "No actors left")) -> pure ()
-    (Just _, Left err) -> error (show err)
+    (Just _, Left err') -> error (show err')
     -- TODO available actions for a finished game results in a Prelude.head exception
     _ -> pure ()
 
