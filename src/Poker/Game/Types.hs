@@ -169,5 +169,6 @@ makeLenses ''GameError
 makeLenses ''ActionFaced
 makePrisms ''GameError
 makePrisms ''Board
+makePrisms ''Action
 makePrisms ''DealerAction
 makeLenses ''GameState

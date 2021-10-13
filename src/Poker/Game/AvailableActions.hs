@@ -13,6 +13,7 @@ import Data.Maybe
   )
 import Data.Text (Text)
 import Poker
+import Control.Monad
 import Poker.Game.Types
 
 #if MIN_VERSION_prettyprinter(1,7,0)

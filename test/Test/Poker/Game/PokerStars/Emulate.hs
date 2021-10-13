@@ -11,7 +11,7 @@ import Control.Monad.Except
 import Control.Monad.State.Strict
 import Control.Monad.Writer
 import Data.Either.Extra (mapLeft)
-import Data.Foldable.Extra (foldlM)
+import Data.Foldable (foldlM)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Maybe
