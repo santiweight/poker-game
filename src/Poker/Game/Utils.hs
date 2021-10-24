@@ -5,7 +5,7 @@ module Poker.Game.Utils where
 import Control.Lens
 import Control.Monad.Except
   ( MonadError,
-    throwError,
+    throwError, Except, runExcept
   )
 import Control.Monad.Reader
 import Control.Monad.State.Lazy
@@ -92,3 +92,6 @@ maybeToError :: IsGame m b => GameError b -> Maybe a -> m a
 maybeToError e mb = case mb of
   Just a -> return a
   Nothing -> throwError e
+
+runGame :: StateT s (Except e) a -> s -> Either e s
+runGame m = runExcept . execStateT m

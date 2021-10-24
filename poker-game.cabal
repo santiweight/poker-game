@@ -21,6 +21,7 @@ library
   exposed-modules:
     Poker.Game.Emulate
     Poker.Game.AvailableActions
+    Poker.Game.Bovada
     Poker.Game.Types
     Poker.Game.Normalise
     Poker.Game.Utils
@@ -34,7 +35,7 @@ library
     , prettyprinter
     , text
   hs-source-dirs: src
-  ghc-options: -j8 +RTS -A128m -n2m -RTS -threaded -rtsopts -with-rtsopts=-N -Wall -Wno-unticked-promoted-constructors
+  -- ghc-options: -j8 +RTS -A128m -n2m -RTS -Wall -Wno-unticked-promoted-constructors
   default-language:    Haskell2010
   default-extensions: ConstraintKinds
                       DataKinds
