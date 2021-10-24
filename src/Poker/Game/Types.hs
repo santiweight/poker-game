@@ -20,7 +20,6 @@ import qualified Data.Map.Strict as Map
 import Prettyprinter
 #else
 import Data.Text.Prettyprint.Doc
-import Data.Text.Prettyprint.Doc (Pretty (pretty))
 #endif
 import Poker
 
@@ -79,7 +78,7 @@ instance Pretty b => Pretty (GameState b) where
       (\a b -> a <> line <> b)
       [ "Stakes:" <+> pretty _stateStakes,
         "Investments:" <+> pretty (Map.toList _streetInvestments),
-        "Street:" <+> pretty _street,
+        "Street:" <+> viaShow _street,
         hang 4 $
           "Stacks:"
             <> line
@@ -157,12 +156,12 @@ data EvalState t = EvalState
   { _nextActions :: [Action t],
     _accRanges :: Map String (ActionRange t),
     _handState :: GameState t,
-    _holdings :: Map Position Hand,
+    _holdings :: Map Position Hole,
     _activeBetType :: Maybe BetType
   }
   deriving (Show)
 
-type ActionRange t = Map Hand [BetAction t]
+type ActionRange t = Map Hole [BetAction t]
 
 makeLenses 'EvalState
 makeLenses ''GameError

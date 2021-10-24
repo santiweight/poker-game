@@ -9,7 +9,7 @@ import Control.Lens hiding (Fold)
 import Data.Maybe
   ( fromJust,
     fromMaybe,
-    isNothing,
+    isNothing, listToMaybe
   )
 import Data.Text (Text)
 import Poker
@@ -18,6 +18,8 @@ import Poker.Game.Types
 #if MIN_VERSION_prettyprinter(1,7,0)
 import Prettyprinter
 import Control.Monad (mfilter)
+import qualified Data.Map.Strict as Map
+import qualified Data.Text as T
 #else
 import           Data.Text.Prettyprint.Doc
 import           Data.Text.Prettyprint.Doc.Render.String    ( renderString )
@@ -65,16 +67,17 @@ availableActions st@GameState {_potSize, _street, _stateStakes, _toActQueue, _po
     (activePlayer : _) <- _toActQueue,
     Just activePlayer == (_position <$> _activeBet),
     -- Not quite correct - ensure that we are not postflop
-    not (activePlayer == BB && Just (unStake _stateStakes) == (_amountFaced <$> _activeBet))  =
+    not (activePlayer == bbPos && Just (_stake _stateStakes) == (_amountFaced <$> _activeBet))  =
     Right (activePlayer, [])
-  | otherwise =
-    let activePlayer = head _toActQueue
-     in case _street of
+  | otherwise = case listToMaybe _toActQueue of
+    Nothing -> Left $ T.pack $ show (st, _toActQueue)
+    Just activePlayer -> case _street of
           RiverBoard _ _ -> getStreetAvailableActions activePlayer st
           TurnBoard _ _ -> getStreetAvailableActions activePlayer st
           FlopBoard _ _ -> getStreetAvailableActions activePlayer st
           PreFlopBoard _ -> getStreetAvailableActions activePlayer st
           InitialTable -> Left "InitialTable"
+  where bbPos = bigBlindPosition $ fromJust $ mkNumPlayers $ Map.size _posToStack
 
 getStreetAvailableActions ::
   (Pretty b, Ord b, IsBet b) =>
@@ -89,10 +92,10 @@ getStreetAvailableActions activePlayer st@GameState {_activeBet, _potSize, _stat
               ^. posToStack
                 . at activePlayer
                 . to fromJust
-                . to _unStack
+                . to _stack
           betA =
-            if activePlayerStack > unStake _stateStakes
-              then ABet (unStake _stateStakes) activePlayerStack
+            if activePlayerStack > _stake _stateStakes
+              then ABet (_stake _stateStakes) activePlayerStack
               else AAllIn activePlayerStack
        in Right (activePlayer, [AFold, ACheck, betA])
     Just activeBet'@(ActionFaced _ amount _) -> do
@@ -109,8 +112,8 @@ getStreetAvailableActions activePlayer st@GameState {_activeBet, _potSize, _stat
             st
               ^. posToStack
                 . at activePlayer
-                . to fromJust
-                . to _unStack
+                . to (fromMaybe $ error $ show (activeBet', st, activePlayer))
+                . to _stack
           streetInv = st ^. streetInvestments . at activePlayer . non mempty
           foldA = AFold
           raiseAs =

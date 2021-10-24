@@ -1,8 +1,6 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module Poker.Game.Emulate where
 
@@ -45,10 +43,12 @@ import Poker.Game.Types
 import Prettyprinter
 import Prettyprinter.Render.String
 import Poker.Game.Utils
+import qualified Data.Map.Strict as Map
 
 -- Monadic action to execute an Action datatype on the given state
 emulateAction :: forall m b. (IsGame m b) => Action b -> m ()
 emulateAction a = do
+  numPlayers <- fromJust . mkNumPlayers . Map.size <$> use posToStack
   case a of
     MkPlayerAction (PlayerAction pos actVal) -> do
       availActions <- get <&> availableActions
@@ -77,13 +77,14 @@ emulateAction a = do
       doRotateNextActor pos actVal
     MkDealerAction deal -> do
       emulateDeal deal
+      activePss <- _toActQueue <$> get
       use street >>= \case
-        InitialTable -> toActQueue %= sortPreflop
-        PreFlopBoard _ -> toActQueue %= sortPreflop
+        InitialTable -> toActQueue .= sortPreflop numPlayers activePss
+        PreFlopBoard _ -> toActQueue .= sortPreflop numPlayers activePss
         _ -> do
           activeBet .= Nothing
           streetInvestments . each .= mempty
-          toActQueue %= sortPostflop
+          toActQueue %= sortPostflop numPlayers
     MkPostAction act -> handlePostAction act
   pure ()
   where
@@ -154,7 +155,7 @@ emulateAction a = do
         incPot postSize
         decStack pos postSize
         stateStakes' <- use stateStakes
-        streetInvestments . at pos . non mempty %= add (minimum [postSize, unStake stateStakes'])
+        streetInvestments . at pos . non mempty %= add (minimum [postSize, _stake stateStakes'])
       PostSuperDead postSize -> do
         incPot postSize
         decStack pos postSize

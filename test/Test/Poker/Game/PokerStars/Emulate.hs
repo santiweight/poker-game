@@ -43,6 +43,7 @@ import Text.Show.Pretty (pPrint, ppShow)
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.Encoding.Error as T
 import qualified Data.ByteString as BS
+import Poker.History.PokerStars.Model (History(_handPlayerMap))
 
 
 testDir :: IO FilePath
@@ -98,6 +99,7 @@ unit_testAllPokerStarsHands = do
       Left err' -> do
         liftIO $ print $ "Skipping potentially corrupted history #" <> show (PS.gameId . PS.header $ hand) <> " in file " <> fp
         liftIO $ pPrint $ PS._handActions hand
+        let numPlayers = fromJust $ mkNumPlayers $ Map.size $ _handPlayerMap hand
         liftIO $ pPrint $ normalise <$> PS._handActions hand
         liftIO $ pPrint err'
       Right cas -> tell ((fp,hand,) <$> cas) >> pure ()
@@ -129,6 +131,7 @@ getCases hand' = runExcept $ execWriterT $ foldlM go preflopState nonPostActs
     preflopState = case runGame (mapM_ emulateAction postActs) initState of
       Left ge -> error $ ppShow ge
       Right gs -> gs
+    numPlayers = fromJust $ mkNumPlayers $ Map.size $ _handPlayerMap hand'
     normalisedActs =
       mapMaybe normalise $
         PS._handActions hand'

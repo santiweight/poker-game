@@ -80,6 +80,7 @@ unit_testAllHands = do
     forM fileResults $ \(fp, hands) -> forM hands $ \hand -> case getCases hand of
       Left err -> do
         liftIO $ print $ "Skipping potentially corrupted history: " <> show (Bov.gameId . Bov.header $ hand)
+        liftIO $ pPrint hand
         liftIO $ pPrint err
       Right cas -> tell ((fp,hand,) <$> cas) >> pure ()
   print $ "Testing " <> show (sum $ length . snd <$> fileResults) <> " hands"
@@ -111,7 +112,7 @@ getCases hand' = runExcept $ execWriterT $ foldlM go preflopState nonPostActs
       Left ge -> error $ ppShow ge
       Right gs -> gs
     normalisedActs =
-      mapMaybe normalise $
+      mapMaybe (normalise . (fromJust . mkNumPlayers $ Map.size $ Bov._handPlayerMap hand',)) $
         Bov._handActions hand'
     (postActs, nonPostActs) =
       let (postActs', nonPostActs') =
