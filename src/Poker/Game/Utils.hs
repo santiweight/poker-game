@@ -57,7 +57,7 @@ decStack pos amount = do
 
 atPlayerStack :: Position -> Traversal' (GameState t) t
 atPlayerStack pos =
-  posToStack . ix pos . lens _unStack (\_ s -> Stack s)
+  posToStack . ix pos . lens _stack (\_ s -> Stack s)
 
 getStack :: IsGame m b => Position -> m b
 getStack pos =

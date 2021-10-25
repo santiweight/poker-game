@@ -154,7 +154,7 @@ emulateAction a = do
         incPot postSize
         decStack pos postSize
         stateStakes' <- use stateStakes
-        streetInvestments . at pos . non mempty %= add (minimum [postSize, unStake stateStakes'])
+        streetInvestments . at pos . non mempty %= add (minimum [postSize, _stake stateStakes'])
       PostSuperDead postSize -> do
         incPot postSize
         decStack pos postSize

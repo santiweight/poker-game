@@ -66,7 +66,7 @@ availableActions st@GameState {_potSize, _street, _stateStakes, _toActQueue, _po
     (activePlayer : _) <- _toActQueue,
     Just activePlayer == (_position <$> _activeBet),
     -- Not quite correct - ensure that we are not postflop
-    not (activePlayer == BB && Just (unStake _stateStakes) == (_amountFaced <$> _activeBet))  =
+    not (activePlayer == BB && Just (_stake _stateStakes) == (_amountFaced <$> _activeBet))  =
     Right (activePlayer, [])
   | otherwise =
     let activePlayer = head _toActQueue
@@ -90,10 +90,10 @@ getStreetAvailableActions activePlayer st@GameState {_activeBet, _potSize, _stat
               ^. posToStack
                 . at activePlayer
                 . to fromJust
-                . to _unStack
+                . to _stack
           betA =
-            if activePlayerStack > unStake _stateStakes
-              then ABet (unStake _stateStakes) activePlayerStack
+            if activePlayerStack > _stake _stateStakes
+              then ABet (_stake _stateStakes) activePlayerStack
               else AAllIn activePlayerStack
        in Right (activePlayer, [AFold, ACheck, betA])
     Just activeBet'@(ActionFaced _ amount _) -> do
@@ -111,7 +111,7 @@ getStreetAvailableActions activePlayer st@GameState {_activeBet, _potSize, _stat
               ^. posToStack
                 . at activePlayer
                 . to fromJust
-                . to _unStack
+                . to _stack
           streetInv = st ^. streetInvestments . at activePlayer . non mempty
           foldA = AFold
           raiseAs =

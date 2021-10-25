@@ -1,6 +1,7 @@
 {-# LANGUAGE TupleSections #-}
 
 module Test.Poker.Game.PokerStars.Emulate where
+
 import Control.Lens hiding (Fold)
 import Control.Lens.Extras (is)
 import Control.Monad.Except
@@ -10,6 +11,7 @@ import Control.Monad.Except
   )
 import Control.Monad.State.Strict
 import Control.Monad.Writer
+import qualified Data.ByteString as BS
 import Data.Either.Extra (mapLeft)
 import Data.Foldable (foldlM)
 import Data.Map.Strict (Map)
@@ -20,6 +22,8 @@ import Data.Maybe
   )
 import Data.Text (Text)
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
+import qualified Data.Text.Encoding.Error as T
 import qualified Data.Text.IO as T
 import Data.Void (Void)
 import GHC.Stack (HasCallStack)
@@ -40,10 +44,6 @@ import System.Directory
 import System.FilePath hiding (normalise)
 import Text.Megaparsec
 import Text.Show.Pretty (pPrint, ppShow)
-import qualified Data.Text.Encoding as T
-import qualified Data.Text.Encoding.Error as T
-import qualified Data.ByteString as BS
-
 
 testDir :: IO FilePath
 testDir = getCurrentDirectory <&> (</> "test")
@@ -88,19 +88,18 @@ allHands = do
   let resultsUsd = (fmap . fmap . fmap) unsafeToUsdHand <$> results
   pure . Map.fromList $ resultsUsd
 
-makePrisms ''Action
-
 unit_testAllPokerStarsHands :: IO ()
 unit_testAllPokerStarsHands = do
   fileResults <- Map.toList <$> Test.Poker.Game.PokerStars.Emulate.allHands
   cases <- execWriterT $
-    forM fileResults $ \(fp, hands) -> forM hands $ \hand -> case getCases hand of
-      Left err' -> do
-        liftIO $ print $ "Skipping potentially corrupted history #" <> show (PS.gameId . PS.header $ hand) <> " in file " <> fp
-        liftIO $ pPrint $ PS._handActions hand
-        liftIO $ pPrint $ normalise <$> PS._handActions hand
-        liftIO $ pPrint err'
-      Right cas -> tell ((fp,hand,) <$> cas) >> pure ()
+    forM fileResults $ \(fp, hands) ->
+      forM hands $ \hand -> case getCases hand of
+        Left err' -> do
+          liftIO $ print $ "Skipping potentially corrupted history #" <> show (PS.gameId . PS.header $ hand) <> " in file " <> fp
+          liftIO $ pPrint $ PS._handActions hand
+          liftIO $ pPrint $ normalise <$> PS._handActions hand
+          liftIO $ pPrint err'
+        Right cas -> tell ((fp,hand,) <$> cas) >> pure ()
   print $ "Testing " <> show (sum $ length . snd <$> fileResults) <> " hands"
   print $ "Testing " <> show (length cases) <> " cases"
   forM_ cases $ \(fp, history, historyCase) -> do

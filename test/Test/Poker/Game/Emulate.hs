@@ -1,5 +1,4 @@
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE TupleSections #-}
 
 module Test.Poker.Game.Emulate where
@@ -70,8 +69,6 @@ allHands = do
   results <- (\fp -> (fp,) <$> parseFile fp) `mapM` fps
   let resultsUsd = (fmap . fmap . fmap . fmap) unsafeToUsdHand <$> results
   pure . Map.mapMaybe eitherToMaybe . Map.fromList $ resultsUsd
-
-makePrisms ''Action
 
 unit_testAllHands :: IO ()
 unit_testAllHands = do
