@@ -6,7 +6,7 @@
 
 module Poker.Game.Normalise where
 
-import Data.Functor ((<&>))
+import Data.Functor ((<&>), ($>))
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromJust)
 import Poker
@@ -39,7 +39,7 @@ instance IsBet b => Normalise (Bov.History b) (GameState b) where
 instance Normalise (Bov.Player b) (Maybe (Stack b)) where
   normalise :: Bov.Player b -> Maybe (Stack b)
   normalise (Bov.Player m_ha b) =
-    m_ha <&> \_ -> Stack b
+    m_ha $> b
 
 instance Normalise (Bov.Action b) (Maybe (Action b)) where
   normalise :: Bov.Action b -> Maybe (Action b)

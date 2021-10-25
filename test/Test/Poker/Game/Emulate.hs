@@ -193,7 +193,7 @@ runCase originalFile handId (Case nextA gs) = do
     -- TODO available actions for a finished game results in a Prelude.head exception
     _ -> pure ()
 
-data GameErrorWithCtx b = GameErrorWithCtx {state :: GameState b, offendingAct :: Action b, err :: GameError b}
+data GameErrorWithCtx b = GameErrorWithCtx {state :: GameState b, offendingAct :: Action b, gameError :: GameError b}
   deriving (Show)
 
 concatM :: (Monad m) => [a -> m a] -> (a -> m a)
